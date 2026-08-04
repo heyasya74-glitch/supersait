@@ -682,6 +682,72 @@ function loadState(){
   } catch(e){}
 }
 
+function exportAllData(){
+  try {
+    const data = {
+      exportedAt: new Date().toISOString(),
+      version: 'v2',
+      uidCounter,
+      state: {
+        currentUserId: state.currentUserId,
+        projectTab: state.projectTab,
+        calendarSelected: state.calendarSelected,
+        mergedAssignees: state.mergedAssignees,
+        timezone: state.timezone,
+        notificationsEnabled: state.notificationsEnabled,
+        users: state.users,
+        guide: state.guide,
+        projects: state.projects,
+        tasks: state.tasks,
+        templateFolders: state.templateFolders,
+        shoppingItems: state.shoppingItems,
+        projectFiles: state.projectFiles,
+      },
+    };
+    const blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `planner_backup_${todayStr()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast('Данные экспортированы');
+  } catch(e){ toast('Ошибка экспорта'); }
+}
+
+function importAllData(){
+  const file = document.getElementById('importFileInput')?.files?.[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = (e)=>{
+    try {
+      const data = JSON.parse(e.target.result);
+      if(data.state){
+        if(data.uidCounter) uidCounter = data.uidCounter;
+        if(data.state.currentUserId) state.currentUserId = data.state.currentUserId;
+        if(data.state.projectTab) state.projectTab = data.state.projectTab;
+        if(data.state.calendarSelected) state.calendarSelected = data.state.calendarSelected;
+        if(data.state.mergedAssignees) state.mergedAssignees = data.state.mergedAssignees;
+        if(data.state.timezone) state.timezone = data.state.timezone;
+        if(data.state.notificationsEnabled !== undefined) state.notificationsEnabled = data.state.notificationsEnabled;
+        if(data.state.users) state.users = data.state.users;
+        if(data.state.guide) state.guide = data.state.guide;
+        if(data.state.projects) state.projects = data.state.projects;
+        if(data.state.tasks) state.tasks = data.state.tasks;
+        if(data.state.templateFolders) state.templateFolders = data.state.templateFolders;
+        if(data.state.shoppingItems) state.shoppingItems = data.state.shoppingItems;
+        if(data.state.projectFiles) state.projectFiles = data.state.projectFiles;
+      }
+      state.route = { name:'home', params:{} };
+      expandedTasks.clear();
+      render();
+      toast('Данные импортированы!');
+      document.getElementById('importFileInput').value = '';
+    } catch(err){ toast('Ошибка: неверный формат файла'); }
+  };
+  reader.readAsText(file);
+}
+
 /* ============ RENDER SHELL ============ */
 function render(){
   renderBottomNav();
@@ -1264,6 +1330,19 @@ function viewSettings(){
         <span style="color:var(--text-faint);">✎</span>
       </div>
     </div>
+    <div class="section-title">Данные</div>
+    <div class="card">
+      <div class="settings-row" style="cursor:pointer;" data-export-data>
+        <div><div class="lbl">📤 Экспорт всех данных</div><div class="sub">Скачать JSON-файл со всеми задачами, проектами и настройками</div></div>
+        <span style="color:var(--text-faint);">↓</span>
+      </div>
+      <div class="settings-row" style="cursor:pointer;" data-import-data>
+        <div><div class="lbl">📥 Импорт данных</div><div class="sub">Загрузить ранее сохранённый JSON-файл</div></div>
+        <span style="color:var(--text-faint);">↑</span>
+      </div>
+      <input type="file" id="importFileInput" accept=".json" style="display:none;">
+      <div class="proj-sub" style="text-align:center; margin:6px 0 2px;">Экспортируйте с ноутбука → отправьте файл на телефон → импортируйте там</div>
+    </div>
     <div class="section-title">Помощь</div>
     <div class="card">
       <div class="settings-row" data-open-guide="1" style="cursor:pointer;">
@@ -1410,6 +1489,10 @@ function bindViewEvents(){
   const guideAddBtn = document.getElementById('guideAddBtn');
   if(guideAddBtn) guideAddBtn.onclick = openCreateGuideEntry;
   document.querySelectorAll('[data-toggle-theme]').forEach(b=>b.onclick=toggleTheme);
+  document.querySelectorAll('[data-export-data]').forEach(b=>b.onclick=exportAllData);
+  document.querySelectorAll('[data-import-data]').forEach(b=>b.onclick=()=>document.getElementById('importFileInput').click());
+  const importFileInput = document.getElementById('importFileInput');
+  if(importFileInput) importFileInput.onchange = importAllData;
   document.querySelectorAll('[data-change-timezone]').forEach(b=>b.onclick=openTimezones);
   document.querySelectorAll('[data-toggle-notifications]').forEach(b=>b.onclick=toggleNotifications);
   document.querySelectorAll('[data-add-project-folder]').forEach(b=>b.onclick=()=>{
