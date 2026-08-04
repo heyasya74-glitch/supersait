@@ -6,7 +6,6 @@
   <title>Хозяйство — планировщик жизни</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;600;700&family=Golos+Text:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <style>
 :root{
   --bg:#F5F4EE;
@@ -472,28 +471,29 @@ const state = {
 let expandedTasks = new Set();
 let upcomingOpen = false;
 
-/* ============ SUPABASE CLOUD SYNC ============ */
+/* ============ SUPABASE CLOUD SYNC (REST API) ============ */
 const SUPABASE_URL = 'https://qwrejxtfipjrfcxqlane.supabase.co';
-const SUPABASE_ANON_KEY = 'sb_publishable_bffat_Bzci1d7f3Za90Y2w_wIzQhplI';
-let supabase = null;
+const SUPABASE_KEY = 'sb_publishable_bffat_Bzci1d7f3Za90Y2w_wIzQhplI';
+let cloudReady = true;
 
-function initSupabase(){
-  if(typeof window.supabase !== 'undefined'){
-    supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-  }
+async function cloudFetch(path, options={}){
+  const url = `${SUPABASE_URL}/rest/v1/${path}`;
+  const headers = {
+    'apikey': SUPABASE_KEY,
+    'Authorization': `Bearer ${SUPABASE_KEY}`,
+    ...(options.headers||{}),
+  };
+  return fetch(url, { ...options, headers });
 }
-initSupabase();
 
 async function loadFromCloud(){
-  if(!supabase) return false;
+  if(SUPABASE_URL.includes('YOUR')) return false;
   try {
-    const { data, error } = await supabase
-      .from('planner_state')
-      .select('data')
-      .eq('key','main')
-      .single();
-    if(error || !data || !data.data) return false;
-    const d = data.data;
+    const res = await cloudFetch(`planner_state?key=eq.main&select=data`);
+    if(!res.ok){ console.log('Cloud fetch status:', res.status); return false; }
+    const rows = await res.json();
+    if(!rows.length || !rows[0].data) return false;
+    const d = rows[0].data;
     if(d.uidCounter) uidCounter = Math.max(uidCounter, d.uidCounter);
     if(d.state){
       const s = d.state;
@@ -512,11 +512,11 @@ async function loadFromCloud(){
       if(s.projectFiles) state.projectFiles = s.projectFiles;
     }
     return true;
-  } catch(e){ return false; }
+  } catch(e){ console.log('Cloud load error:', e); return false; }
 }
 
 async function saveToCloud(){
-  if(!supabase) return;
+  if(SUPABASE_URL.includes('YOUR')) return;
   try {
     const payload = {
       uidCounter,
@@ -536,17 +536,24 @@ async function saveToCloud(){
         projectFiles: state.projectFiles,
       },
     };
-    await supabase
-      .from('planner_state')
-      .upsert({ key:'main', data:payload, updated_at:new Date().toISOString() }, { onConflict:'key' });
-  } catch(e){}
+    const res = await cloudFetch('planner_state', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Prefer': 'resolution=merge-duplicates',
+      },
+      body: JSON.stringify({ key:'main', data:payload, updated_at:new Date().toISOString() }),
+    });
+    if(!res.ok) console.log('Cloud save status:', res.status);
+  } catch(e){ console.log('Cloud save error:', e); }
 }
 
 async function cloudSyncNow(){
-  if(!supabase){ toast('Облако не подключено'); return; }
-  const ok = await loadFromCloud();
-  if(ok){ render(); toast('Данные синхронизированы из облака'); }
-  else toast('Ошибка синхронизации или данных нет');
+  try {
+    const ok = await loadFromCloud();
+    if(ok){ render(); toast('Данные синхронизированы из облака'); }
+    else toast('Данных в облаке пока нет или ошибка');
+  } catch(e){ toast('Ошибка соединения с облаком'); }
 }
 
 /* ============ THEME ============ */
@@ -1420,8 +1427,8 @@ function viewSettings(){
     <div class="section-title">Данные</div>
     <div class="card">
       <div class="settings-row">
-        <div><div class="lbl">☁️ Облачная синхронизация</div><div class="sub" id="cloudStatus">${supabase?'Подключено · Supabase':'Не подключено'}</div></div>
-        ${supabase?`<span style="color:var(--sage);">✓</span>`:`<span style="color:var(--text-faint);">—</span>`}
+        <div><div class="lbl">☁️ Облачная синхронизация</div><div class="sub" id="cloudStatus">Supabase · подключено</div></div>
+        <span style="color:var(--sage);">✓</span>
       </div>
       <div class="settings-row" style="cursor:pointer;" data-cloud-sync>
         <div><div class="lbl">🔄 Синхронизировать сейчас</div><div class="sub">Загрузить актуальные данные из облака</div></div>
@@ -1436,7 +1443,6 @@ function viewSettings(){
         <span style="color:var(--text-faint);">↑</span>
       </div>
       <input type="file" id="importFileInput" accept=".json" style="display:none;">
-      ${!supabase?`<div class="proj-sub" style="text-align:center; margin:6px 0 2px;">Экспортируйте с ноутбука → отправьте файл на телефон → импортируйте там</div>`:''}
     </div>
     <div class="section-title">Помощь</div>
     <div class="card">
