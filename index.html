@@ -2717,8 +2717,8 @@ function openTaskDetail(id){
         <input type="text" id="editTitle" class="mini-input" value="${t.title.replace(/"/g,'&quot;')}" style="font-weight:700; font-size:15px; border:none; padding:4px 0; background:transparent; color:var(--text); width:100%;">
         <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap; margin-top:4px;">
           <button class="chip" data-change-project="${t.id}" style="cursor:pointer;">${p?p.icon+' '+p.name:'🗂️ Без проекта'}</button>
-          <input type="date" id="editDate" value="${t.date}" class="mini-input" style="width:auto; min-width:120px; font-size:11px; padding:4px 8px;">
-          <input type="number" id="editTime" value="${t.planned}" min="5" step="5" class="mini-input" style="width:56px; font-size:11px; padding:4px 6px;" title="Минут"><span style="font-size:10px; color:var(--text-soft);">мин</span>
+          <input type="date" id="editDate" value="${t.date}" class="mini-input" style="width:auto; min-width:105px; font-size:11px; padding:4px 6px;">
+          <input type="number" id="editTime" value="${t.planned}" min="5" step="5" class="mini-input" style="width:44px; font-size:11px; padding:4px 4px;" title="Минут"><span style="font-size:10px; color:var(--text-soft);">м</span>
           ${t.recurringGroup?`<span class="chip">🔁 ${freqLabel(t.recurringFreq, t.recurringInterval)}</span>`:''}
         </div>
       </div>
@@ -2757,35 +2757,10 @@ function openTaskDetail(id){
       <input type="text" id="newCheckText" class="mini-input" placeholder="Добавить пункт">
       <button class="btn sm" id="addCheckBtn">+</button>
     </div>
-    ${!hasSecond?`<button class="btn secondary sm block" style="margin-bottom:10px;" type="button" onclick="(function(){
-      const t=state.tasks.find(x=>x.id==='${t.id}');
-      if(!t) return;
-      const other=state.users.find(u=>u.id!==t.assignee);
-      t.secondaryChecklist=[];
-      t.secondaryAssignee=other?other.id:state.users[0].id;
-      render(); closeModal(); openTaskDetail('${t.id}');
-    })()">👥 Добавить второй чек-лист</button>`:''}
-
-    <div class="folder-title">🔁 Повтор</div>
+    ${!hasSecond?`<button class="btn ghost sm" id="addSecondChecklistBtn" style="margin-bottom:6px;">👥 + второй чек-лист</button>`:''}
     ${t.recurringGroup
-      ? `<div style="display:flex; align-items:center; gap:8px;"><span class="chip">🔁 ${freqLabel(t.recurringFreq, t.recurringInterval)}</span><button class="btn ghost sm" onclick="(function(){
-        const t=state.tasks.find(x=>x.id==='${t.id}');
-        delete t.recurringGroup; delete t.recurringFreq; delete t.recurringInterval;
-        render(); closeModal(); openTaskDetail('${t.id}');
-        })()">Отменить повтор</button></div>`
-      : `<button class="btn secondary sm block" onclick="(function(){
-        const t=state.tasks.find(x=>x.id==='${t.id}');
-        const freq=prompt('Повторять каждые (дней/недель/месяцев)?','1 недель');
-        if(!freq) return;
-        const m=freq.match(/(\d+)\s*(д|н|м)/);
-        const n=m?parseInt(m[1]):1;
-        const fm=m?{д:'daily',н:'weekly',м:'monthly'}[m[2]]||'weekly':'weekly';
-        t.recurringGroup=Math.random().toString(36).slice(2);
-        t.recurringFreq=fm; t.recurringInterval=n;
-        render(); closeModal(); openTaskDetail('${t.id}');
-        toast('Задача стала регулярной');
-      })()">🔁 Сделать регулярной</button>`}
-    </div>
+      ? `<div style="margin-bottom:6px;"><span class="chip">🔁 ${freqLabel(t.recurringFreq, t.recurringInterval)}</span> <button class="btn ghost sm" id="cancelRecurringBtn">отменить</button></div>`
+      : `<button class="btn ghost sm" id="makeRecurringBtn">🔁 сделать регулярной</button>`}
     `}
 
     <div class="folder-title">💬 Обсуждение</div>
@@ -2863,6 +2838,23 @@ function openTaskDetail(id){
       const other = state.users.find(u=>u.id!==t.assignee);
       t.secondaryChecklist = [];
       t.secondaryAssignee = other ? other.id : state.users[0].id;
+      openTaskDetail(t.id);
+    };
+    const makeRecurring = document.getElementById('makeRecurringBtn');
+    if(makeRecurring) makeRecurring.onclick = ()=>{
+      const freq = prompt('Каждые (например: 1 недель, 3 дней, 1 месяцев)?', '1 недель');
+      if(!freq) return;
+      const m = freq.match(/(\d+)\s*(д|н|м)/);
+      const n = m ? parseInt(m[1]) : 1;
+      const fm = m ? {д:'daily', н:'weekly', м:'monthly'}[m[2]] || 'weekly' : 'weekly';
+      t.recurringGroup = Math.random().toString(36).slice(2);
+      t.recurringFreq = fm; t.recurringInterval = n;
+      openTaskDetail(t.id);
+      toast('Задача стала регулярной');
+    };
+    const cancelRecurring = document.getElementById('cancelRecurringBtn');
+    if(cancelRecurring) cancelRecurring.onclick = ()=>{
+      delete t.recurringGroup; delete t.recurringFreq; delete t.recurringInterval;
       openTaskDetail(t.id);
     };
 
