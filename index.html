@@ -385,6 +385,8 @@ const state = {
   currentUserId: 'asya',
   route: { name: 'home', params: {} },
   projectTab: 'mine', // mine | shared | all — "Мои" is the default/main view
+  timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+  notificationsEnabled: false,
   calendarSelected: todayStr(),
   mergedAssignees: {}, // dateKey -> userId, responsible for that day's merged shopping list
 
@@ -463,6 +465,7 @@ const state = {
     ]
   },
   shoppingItems: [], // { id, name, amount, unit, done, date }
+  projectFiles: {}, // projectId -> { folders: [{name, id}], files: [{id,name,type,dataUrl,folderId,addedBy,size}] }
 };
 
 let expandedTasks = new Set();
@@ -473,6 +476,71 @@ let upcomingOpen = false;
   const saved = localStorage.getItem('planner_theme');
   if(saved==='dark') document.documentElement.setAttribute('data-theme','dark');
 })();
+function toggleNotifications(){
+  if(!state.notificationsEnabled){
+    if('Notification' in window){
+      Notification.requestPermission().then(perm=>{
+        if(perm==='granted'){
+          state.notificationsEnabled = true;
+          toast('Уведомления включены');
+          startNotificationPolling();
+        } else {
+          toast('Разрешение на уведомления не получено');
+        }
+        render();
+      });
+    } else {
+      toast('Ваш браузер не поддерживает уведомления');
+    }
+  } else {
+    state.notificationsEnabled = false;
+    stopNotificationPolling();
+    render();
+    toast('Уведомления отключены');
+  }
+}
+
+let __notifTimer = null;
+function startNotificationPolling(){
+  if(__notifTimer) clearInterval(__notifTimer);
+  __notifTimer = setInterval(checkAndNotify, 60000); // every minute
+}
+function stopNotificationPolling(){
+  if(__notifTimer){ clearInterval(__notifTimer); __notifTimer = null; }
+}
+function checkAndNotify(){
+  if(!state.notificationsEnabled) return;
+  const today = todayStr();
+  const now = new Date();
+  state.tasks.filter(t=>t.date===today && !t.done).forEach(t=>{
+    const key = `notified_${t.id}_${today}`;
+    if(localStorage.getItem(key)) return;
+    const title = t.title.length>60? t.title.slice(0,57)+'...' : t.title;
+    const p = projectById(t.projectId);
+    new Notification(`📋 ${p?p.name:'Задача'}`, { body: title, icon: '/favicon.ico', tag: key });
+    localStorage.setItem(key, '1');
+  });
+}
+
+function openTimezones(){
+  const tzs = Intl.supportedValuesOf ? Intl.supportedValuesOf('timeZone') : ['Europe/Moscow','Europe/Kaliningrad','Europe/Samara','Asia/Yekaterinburg','Asia/Novosibirsk','Asia/Krasnoyarsk','Asia/Irkutsk','Asia/Vladivostok','Asia/Kamchatka','Europe/London','America/New_York'];
+  const current = state.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone;
+  openModal(`
+    <div class="sheet-title">Часовой пояс</div>
+    <div class="proj-sub" style="margin:6px 0 14px;">Текущий: ${current}</div>
+    <div class="field"><label>Быстрый выбор</label>
+      <div class="chip-select" style="flex-direction:column; max-height:60vh; overflow-y:auto;">
+        ${tzs.slice(0,40).map(tz=>`<button data-tz="${tz}" class="${tz===current?'active':''}" style="width:100%; text-align:left;">${tz}</button>`).join('')}
+      </div>
+    </div>
+  `, ()=>{
+    document.querySelectorAll('[data-tz]').forEach(b=>b.onclick=()=>{
+      state.timezone = b.dataset.tz;
+      closeModal();
+      toast(`Часовой пояс: ${b.dataset.tz}`);
+    });
+  });
+}
 function toggleTheme(){
   const el = document.documentElement;
   if(el.getAttribute('data-theme')==='dark'){
@@ -485,7 +553,12 @@ function toggleTheme(){
   render();
 }
 
-function todayStr(){ return dateKey(new Date()); }
+function todayStr(){
+  try {
+    const tz = (state && state.timezone) || Intl.DateTimeFormat().resolvedOptions().timeZone;
+    return new Date().toLocaleDateString('sv-SE', {timeZone: tz});
+  } catch(e){ return new Date().toLocaleDateString('sv-SE'); }
+}
 function dateKey(d){ return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
 function addDays(key, n){ const d=new Date(key); d.setDate(d.getDate()+n); return dateKey(d); }
 function userById(id){ return state.users.find(u=>u.id===id); }
@@ -559,11 +632,62 @@ function toast(msg){
   window.__toastTimer = setTimeout(()=>t.classList.remove('show'), 1800);
 }
 
+/* ============ PERSISTENCE ============ */
+function saveState(){
+  try {
+    const data = {
+      uidCounter,
+      state: {
+        currentUserId: state.currentUserId,
+        projectTab: state.projectTab,
+        calendarSelected: state.calendarSelected,
+        mergedAssignees: state.mergedAssignees,
+        users: state.users,
+        guide: state.guide,
+        projects: state.projects,
+        tasks: state.tasks,
+        templateFolders: state.templateFolders,
+        shoppingItems: state.shoppingItems,
+        projectFiles: state.projectFiles,
+        timezone: state.timezone,
+        notificationsEnabled: state.notificationsEnabled,
+      },
+      expandedTasks: [...expandedTasks],
+    };
+    localStorage.setItem('planner_data', JSON.stringify(data));
+  } catch(e){}
+}
+function loadState(){
+  try {
+    const raw = localStorage.getItem('planner_data');
+    if(!raw) return;
+    const data = JSON.parse(raw);
+    if(data.uidCounter) uidCounter = data.uidCounter;
+    if(data.state){
+      if(data.state.currentUserId) state.currentUserId = data.state.currentUserId;
+      if(data.state.projectTab) state.projectTab = data.state.projectTab;
+      if(data.state.timezone) state.timezone = data.state.timezone;
+      if(data.state.notificationsEnabled !== undefined) state.notificationsEnabled = data.state.notificationsEnabled;
+      if(data.state.calendarSelected) state.calendarSelected = data.state.calendarSelected;
+      if(data.state.mergedAssignees) state.mergedAssignees = data.state.mergedAssignees;
+      if(data.state.users) state.users = data.state.users;
+      if(data.state.guide) state.guide = data.state.guide;
+      if(data.state.projects) state.projects = data.state.projects;
+      if(data.state.tasks) state.tasks = data.state.tasks;
+      if(data.state.templateFolders) state.templateFolders = data.state.templateFolders;
+      if(data.state.shoppingItems) state.shoppingItems = data.state.shoppingItems;
+      if(data.state.projectFiles) state.projectFiles = data.state.projectFiles;
+    }
+    if(data.expandedTasks) expandedTasks = new Set(data.expandedTasks);
+  } catch(e){}
+}
+
 /* ============ RENDER SHELL ============ */
 function render(){
   renderBottomNav();
   renderTopbar();
   renderView();
+  saveState();
 }
 
 function openDrawer(){
@@ -652,7 +776,8 @@ function renderView(){
 
 /* ============ HOME ============ */
 function viewHome(){
-  const entry = state.guide.entries[Math.floor(Math.random()*state.guide.entries.length)];
+  const dateSeed = todayStr().split('-').reduce((s,n)=>s+parseInt(n),0);
+  const entry = state.guide.entries[dateSeed % state.guide.entries.length];
   const todays = state.tasks.filter(t=>t.date===todayStr());
   const filtered = filterTasksByTab(todays).slice().sort(doneSort);
   const done = filtered.filter(t=>t.done).length;
@@ -756,8 +881,8 @@ function noProjectTasks(){ return state.tasks.filter(t=>!t.projectId); }
 function viewProjects(){
   const virtual = { id:'none', name:'Без проекта', icon:'🗂️', type:'personal', accent:'clay', members:[], virtual:true };
   const list = state.projects.filter(p=>{
-    if(state.projectTab==='mine') return p.type==='personal' || p.type==='template';
-    if(state.projectTab==='shared') return p.type==='shared' || p.type==='template';
+    if(state.projectTab==='mine') return p.type==='personal' || (p.type==='template' && p.members.length===1 && p.members[0]===state.currentUserId);
+    if(state.projectTab==='shared') return p.type==='shared' || (p.type==='template' && p.members.length>1);
     return true;
   });
   const showVirtual = state.projectTab!=='shared';
@@ -920,19 +1045,58 @@ function viewProjectDetail(id){
         ${upcomingOpen? `<div class="card" style="padding:4px 12px;">${upcomingTasks.map(t=>taskRow(t)).join('')}</div>` : ''}
       ` : ''}
     ` : `
-      <div class="card">
-        <div class="folder-title">Папки</div>
-        <div class="menu-list">
-          <button>📁 Документы</button>
-          <button>📁 Фото</button>
-        </div>
-      </div>
-      <div class="card">
-        <div class="folder-title">Файлы и заметки</div>
-        ${emptyBlock('🗂️','Файлов пока нет','Загрузите документы, фото или заметки')}
-      </div>
+      ${renderProjectFilesTab(p)}
     `}
   `;
+}
+
+function renderProjectFilesTab(p){
+  const pf = state.projectFiles[p.id] || { folders:[], files:[] };
+  if(!state.projectFiles[p.id]) state.projectFiles[p.id] = pf;
+  const folders = pf.folders || [];
+  const files = pf.files || [];
+  const selectedFolder = state.route.params.folder || 'all';
+  const filteredFiles = selectedFolder==='all' ? files : files.filter(f=>f.folderId===selectedFolder);
+  const currentFolder = selectedFolder==='all' ? null : folders.find(f=>f.id===selectedFolder);
+
+  return `
+    <div class="card">
+      <div class="folder-title">Папки <span class="more" data-add-project-folder="${p.id}">+ Создать</span></div>
+      <div class="chip-select" style="margin-bottom:10px;" id="fileFolders_${p.id}">
+        <button data-folder-filter="${p.id}:all" class="${selectedFolder==='all'?'active':''}">📁 Все файлы</button>
+        ${folders.map(f=>`<button data-folder-filter="${p.id}:${f.id}" class="${f.id===selectedFolder?'active':''}">📁 ${f.name}</button>`).join('')}
+      </div>
+    </div>
+    <div class="card">
+      <div class="folder-title">${currentFolder ? currentFolder.name : 'Все файлы'} · ${filteredFiles.length}</div>
+      ${filteredFiles.length ? filteredFiles.map(f=>`
+        <div class="attach-row">
+          <div style="flex:1; min-width:0;">
+            <div class="t">${f.type&&f.type.startsWith('image/')?'🖼️':'📄'} ${f.name}</div>
+            ${f.addedBy?`<div class="proj-sub">${userById(f.addedBy)?.name||''} · ${formatBytes(f.size||0)}</div>`:`<div class="proj-sub">${formatBytes(f.size||0)}</div>`}
+          </div>
+          <div style="display:flex; align-items:center; gap:6px; flex-shrink:0;">
+            ${f.dataUrl&&f.type&&f.type.startsWith('image/')?`<button class="btn ghost sm" data-preview-file="${f.id}">👁</button>`:''}
+            ${f.dataUrl?`<a href="${f.dataUrl}" download="${f.name}" style="font-size:12px; color:var(--blue); text-decoration:underline; cursor:pointer;">Скачать</a>`:''}
+            <button class="btn ghost sm" data-rm-project-file="${p.id}:${f.id}">×</button>
+          </div>
+        </div>
+      `).join('') : emptyBlock('📁',selectedFolder==='all'?'Файлов пока нет':'Папка пуста','Загрузите файлы кнопкой ниже')}
+
+      <div style="margin-top:12px;">
+        <input type="file" id="fileInput_${p.id}" style="display:none;" data-file-input="${p.id}" multiple>
+        <button class="btn secondary block" data-trigger-upload="${p.id}">📎 Загрузить файлы</button>
+        <div class="proj-sub" style="margin-top:6px; text-align:center;">${selectedFolder==='all'?'Файлы попадут в корень':`Файлы попадут в «${currentFolder?.name||''}»`}</div>
+      </div>
+    </div>
+  `;
+}
+
+function formatBytes(bytes){
+  if(!bytes) return '0 B';
+  if(bytes<1024) return bytes+' B';
+  if(bytes<1048576) return (bytes/1024).toFixed(1)+' KB';
+  return (bytes/1048576).toFixed(1)+' MB';
 }
 
 function viewTemplateProjectDetail(p){
@@ -1078,6 +1242,14 @@ function viewSettings(){
       <div class="settings-row">
         <div><div class="lbl">Тёмная тема</div><div class="sub">Переключайтесь в любое время</div></div>
         <button class="switch theme-toggle${document.documentElement.getAttribute('data-theme')==='dark'?' on':''}" data-toggle-theme></button>
+      </div>
+      <div class="settings-row">
+        <div><div class="lbl">Часовой пояс</div><div class="sub">${state.timezone||'Авто'}</div></div>
+        <span style="color:var(--text-faint);" data-change-timezone>✎</span>
+      </div>
+      <div class="settings-row">
+        <div><div class="lbl">Уведомления</div><div class="sub">${state.notificationsEnabled?'Включены · напоминания о задачах':'Напоминания о задачах'}</div></div>
+        <button class="switch${state.notificationsEnabled?' on':''}" data-toggle-notifications></button>
       </div>
       <div class="settings-row">
         <div><div class="lbl">Язык</div><div class="sub">Русский</div></div>
@@ -1238,6 +1410,72 @@ function bindViewEvents(){
   const guideAddBtn = document.getElementById('guideAddBtn');
   if(guideAddBtn) guideAddBtn.onclick = openCreateGuideEntry;
   document.querySelectorAll('[data-toggle-theme]').forEach(b=>b.onclick=toggleTheme);
+  document.querySelectorAll('[data-change-timezone]').forEach(b=>b.onclick=openTimezones);
+  document.querySelectorAll('[data-toggle-notifications]').forEach(b=>b.onclick=toggleNotifications);
+  document.querySelectorAll('[data-add-project-folder]').forEach(b=>b.onclick=()=>{
+    const pid = b.dataset.addProjectFolder;
+    const name = prompt('Название новой папки:');
+    if(!name || !name.trim()) return;
+    if(!state.projectFiles[pid]) state.projectFiles[pid] = { folders:[], files:[] };
+    if(!state.projectFiles[pid].folders) state.projectFiles[pid].folders = [];
+    state.projectFiles[pid].folders.push({ id:uid('fld'), name:name.trim() });
+    render();
+    toast('Папка создана');
+  });
+  document.querySelectorAll('[data-folder-filter]').forEach(b=>b.onclick=()=>{
+    const [pid, folderId] = b.dataset.folderFilter.split(':');
+    const r = state.route;
+    navigate(r.name, {...r.params, folder: folderId});
+  });
+  document.querySelectorAll('[data-trigger-upload]').forEach(b=>b.onclick=()=>{
+    const pid = b.dataset.triggerUpload;
+    const inp = document.getElementById('fileInput_'+pid);
+    if(inp) inp.click();
+  });
+  document.querySelectorAll('[data-file-input]').forEach(b=>{
+    b.onchange = ()=>{
+      const pid = b.dataset.fileInput;
+      const currentFolder = state.route.params.folder || 'all';
+      if(!state.projectFiles[pid]) state.projectFiles[pid] = { folders:[], files:[] };
+      if(!state.projectFiles[pid].files) state.projectFiles[pid].files = [];
+      const files = b.files;
+      let loaded = 0;
+      const total = files.length;
+      Array.from(files).forEach(file=>{
+        const reader = new FileReader();
+        reader.onload = (e)=>{
+          state.projectFiles[pid].files.push({
+            id: uid('file'), name: file.name, type: file.type,
+            dataUrl: e.target.result, folderId: currentFolder==='all'?null:currentFolder,
+            addedBy: state.currentUserId, size: file.size, addedDate: todayStr()
+          });
+          loaded++;
+          if(loaded===total){ render(); toast(`${total} файл(ов) загружено`); }
+        };
+        reader.readAsDataURL(file);
+      });
+    };
+  });
+  document.querySelectorAll('[data-rm-project-file]').forEach(b=>b.onclick=(e)=>{
+    e.stopPropagation();
+    const [pid, fileId] = b.dataset.rmProjectFile.split(':');
+    if(state.projectFiles[pid] && state.projectFiles[pid].files){
+      state.projectFiles[pid].files = state.projectFiles[pid].files.filter(f=>f.id!==fileId);
+    }
+    render();
+    toast('Файл удалён');
+  });
+  document.querySelectorAll('[data-preview-file]').forEach(b=>b.onclick=(e)=>{
+    e.stopPropagation();
+    const fileId = b.dataset.previewFile;
+    let found = null;
+    Object.values(state.projectFiles).forEach(pf=>{
+      if(pf.files) pf.files.forEach(f=>{ if(f.id===fileId) found = f; });
+    });
+    if(found && found.dataUrl){
+      openModal(`<div class="sheet-title">${found.name}</div><div style="margin-top:14px; text-align:center;"><img src="${found.dataUrl}" style="max-width:100%; max-height:60vh; border-radius:12px;"></div>`);
+    }
+  });
   document.querySelectorAll('#targetProjectSelect button').forEach(b=>b.onclick=()=>{
     const p = projectById(state.route.params.id);
     p.targetProjectId = b.dataset.v;
@@ -2080,7 +2318,16 @@ function bindChecklistEvents(t){
 }
 
 /* ============ INIT ============ */
-render();
+try {
+  loadState();
+  if(state.notificationsEnabled && 'Notification' in window && Notification.permission==='granted'){
+    startNotificationPolling();
+  }
+  render();
+} catch(e){
+  document.getElementById('view').innerHTML = '<div class="card" style="margin-top:40px;"><div class="sheet-title">⚠️ Ошибка загрузки</div><pre style="font-size:12px; overflow:auto; color:var(--clay);">'+e.message+'</pre></div>';
+  console.error(e);
+}
 
 </script>
 </body>
