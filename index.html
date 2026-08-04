@@ -414,7 +414,6 @@ const state = {
   ],
 
   tasks: [],
-  shoppingItems: [],
 
   templateFolders: {
     recipes: [
@@ -444,13 +443,13 @@ const state = {
       ]},
     ]
   },
+  shoppingItems: [], // { id, name, amount, unit, done, date }
   projectFiles: {}, // projectId -> { folders: [{name, id}], files: [{id,name,type,dataUrl,folderId,addedBy,size}] }
   lastModified: Date.now(),
 };
 
 let expandedTasks = new Set();
 let upcomingOpen = false;
-let foldersExpanded = new Set();
 
 /* ============ SUPABASE CLOUD SYNC (REST API) ============ */
 const SUPABASE_URL = 'https://qwrejxtfipjrfcxqlane.supabase.co';
@@ -614,24 +613,6 @@ function toggleNotifications(){
 }
 
 let __notifTimer = null;
-let __syncTimer = null;
-
-function startAutoSync(){
-  if(__syncTimer) clearInterval(__syncTimer);
-  __syncTimer = setInterval(async ()=>{
-    try {
-      const cloudData = await loadFromCloud();
-      if(!cloudData) return;
-      const cloudTime = (cloudData.state && cloudData.state.lastModified) || 0;
-      if(cloudTime > (state.lastModified || 0)){
-        applyStateData(cloudData);
-        state.route = state.route; // keep current page
-        render();
-        window.__lastCloudSync = Date.now();
-      }
-    } catch(e){}
-  }, 30000);
-}
 function startNotificationPolling(){
   if(__notifTimer) clearInterval(__notifTimer);
   __notifTimer = setInterval(checkAndNotify, 60000); // every minute
@@ -950,15 +931,14 @@ function renderTopbar(){
   };
   const [t,s] = titles[state.route.name] || ['',''];
   el.innerHTML = `
-    ${state.route.name!=='search'?`<button class="icon-btn" data-search-btn title="Поиск">🔍</button>`:`<button class="icon-btn" data-nav-to="home" title="Назад">←</button>`}
+    <button class="icon-btn" id="menuBtn" title="Меню">☰</button>
     <div class="topbar-title-wrap">
       ${t?`<div class="topbar-greeting">${t}</div>`:''}
       ${s?`<div class="topbar-sub">${s}</div>`:''}
     </div>
     <button class="icon-btn" id="createBtn" title="Создать">+</button>
   `;
-  const searchBtn = document.querySelector('[data-search-btn]');
-  if(searchBtn) searchBtn.onclick = ()=>navigate('search');
+  document.getElementById('menuBtn').onclick = openDrawer;
   document.getElementById('createBtn').onclick = openCreateMenu;
 }
 
@@ -1096,31 +1076,30 @@ function viewProjects(){
     <div class="pill-tabs">
       ${tabBtn('mine','Личные')}${tabBtn('shared','Общие')}${tabBtn('all','Все')}
     </div>
-    <div class="card" style="padding:4px 8px;">
-      ${showVirtual? projectListCard(virtual): ''}
-      ${list.map(projectListCard).join('')}
+    <div class="proj-grid">
+      ${showVirtual? projectCard(virtual): ''}
+      ${list.map(projectCard).join('')}
     </div>
   `;
 }
-function projectListCard(p){
+function projectCard(p){
   const tasks = p.virtual? noProjectTasks() : state.tasks.filter(t=>t.projectId===p.id);
   const done = tasks.filter(t=>t.done).length;
   const pct = tasks.length? Math.round(done/tasks.length*100):0;
   return `
-    <button class="task-block" data-open-project="${p.id}" style="width:100%; text-align:left; border:none; background:none; cursor:pointer; padding:12px 4px; display:flex; align-items:center; gap:12px;">
-      <span class="proj-icon" style="background:${accentSoft(p.accent)}; width:38px; height:38px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:17px; flex-shrink:0;">${p.icon}</span>
-      <div style="flex:1; min-width:0;">
-        <div style="display:flex; align-items:center; gap:6px;">
-          <span class="proj-name" style="font-size:14.5px;">${p.name}</span>
-          ${p.type==='template'?`<span class="template-badge">Шаблон</span>`:`<span class="chip">${done}/${tasks.length}</span>`}
-          ${p.type!=='template'?`<span style="font-size:12px; color:var(--text-soft);">${pct}%</span>`:''}
+    <button class="proj-card" data-open-project="${p.id}">
+      <div class="proj-icon" style="background:${accentSoft(p.accent)}">${p.icon}</div>
+      <div>
+        <div class="proj-name">${p.name} ${p.type==='template'?'<span class="template-badge">Шаблон</span>':''}</div>
+        <div class="proj-sub">${p.type==='template'? `${state.templateFolders[p.id]?.length||0} папки` : `${tasks.length} задач · ${pct}%`}</div>
+      </div>
+      ${p.type!=='template'?`<div class="progress-bar"><div style="width:${pct}%; background:${accentVar(p.accent)}"></div></div>`:''}
+      <div class="proj-foot">
+        <div class="avatar-stack">
+          ${p.members.map(m=>{const u=userById(m); return `<span class="avatar" style="background:${u.color}">${u.emoji}</span>`}).join('')}
         </div>
-        ${p.type!=='template'?`<div class="progress-bar" style="margin-top:5px;"><div style="width:${pct}%; background:${accentVar(p.accent)}"></div></div>`:`<div class="proj-sub" style="font-size:11px;">${state.templateFolders[p.id]?.reduce((s,f)=>s+f.templates.length,0)||0} шаблонов</div>`}
+        <span style="font-size:11px;color:var(--text-faint);">${p.virtual?'без проекта':p.type==='personal'?'личный':p.type==='template'?'шаблон':'общий'}</span>
       </div>
-      <div class="avatar-stack" style="flex-shrink:0;">
-        ${p.members.slice(0,3).map(m=>{const u=userById(m); return `<span class="avatar" style="background:${u.color}">${u.emoji}</span>`}).join('')}
-      </div>
-      <span style="color:var(--text-faint); flex-shrink:0;">→</span>
     </button>
   `;
 }
@@ -1169,14 +1148,14 @@ function mergedIngredientsCard(dateStr){
   }));
   const recipeItems = [...map.values()];
   const manualItems = state.shoppingItems.filter(s=>s.date===dateStr);
-  const allItems = [...recipeItems, ...manualItems].sort((a,b)=>(a.done?1:0)-(b.done?1:0));
+  const allItems = [...recipeItems, ...manualItems];
   const assignee = userById(getMergedAssignee(dateStr));
 
   return `
     <div class="card" style="background:var(--gold-soft); border-color:#E8D6A0; margin-top:14px;">
-      <div class="folder-title" style="color:#8a6b16;">📋 Список продуктов</div>
+      <div class="folder-title" style="color:#8a6b16;">🧾 Список продуктов${relevant.length?` · ${relevant.length} рецепта`:` (заметки)`}</div>
       ${allItems.length? allItems.map(i=>`
-        <div class="checklist-row ${i.done?'done':''}">
+        <div class="checklist-row">
           <button class="check ${i.done?'done':''}" data-shopping-check="${i.manual?`manual::${i.id}`:`recipe::${dateStr}::${encodeURIComponent(i.name)}::${encodeURIComponent(i.unit||'')}`}" style="width:19px;height:19px;font-size:10px;">${i.done?'✓':''}</button>
           <span class="txt" style="${i.done?'text-decoration:line-through;color:var(--text-faint);':''} font-size:13.5px;">${i.name}</span>
           ${i.amount!=null?`<span style="margin-left:auto; font-weight:700; font-size:12.5px;">${i.amount} ${i.unit||''}</span>`:''}
@@ -1220,12 +1199,10 @@ function viewProjectDetail(id){
       <button class="back-btn" data-nav-to="projects">←</button>
       <div style="display:flex;align-items:center;gap:10px;">
         <div class="proj-icon" style="background:${accentSoft(p.accent)}">${p.icon}</div>
-        <div style="flex:1;">
+        <div>
           <h2 style="font-family:'Unbounded';">${p.name}</h2>
           <div class="proj-sub">${p.type==='shared'?'Общий проект':'Личный проект'} · ${pct}% выполнено сегодня</div>
         </div>
-        <button class="btn ghost sm" data-edit-project="${p.id}">✎</button>
-        <button class="btn ghost sm" data-delete-project="${p.id}" style="color:var(--clay)">🗑</button>
       </div>
     </div>
 
@@ -1331,11 +1308,10 @@ function viewTemplateProjectDetail(p){
       <div class="proj-sub" style="margin-top:8px;">По умолчанию задачи из «${p.name}» будут предложены в проект «${target?target.name:'—'}». При создании его всегда можно поменять вручную.</div>
     </div>
 
-    ${folders.map((f,fi)=>{
-      const isRoot = f.name==='_root_';
-      const folderId = `${p.id}_fld_${fi}`;
-      if(isRoot){
-        return f.templates.map(t=>`
+    ${folders.map(f=>`
+      <div class="folder-block">
+        <div class="folder-title">📁 ${f.name}</div>
+        ${f.templates.map(t=>`
           <div class="tmpl-card">
             <button data-open-template="${t.id}" style="display:flex; align-items:center; gap:12px; flex:1; text-align:left; border:none; background:none; padding:0;">
               <span class="tag">📋</span>
@@ -1344,32 +1320,11 @@ function viewTemplateProjectDetail(p){
                 <div class="desc">${t.ingredients.length} ингредиентов${t.instructions?' · есть рецепт':''}${t.attachments&&t.attachments.length?' · '+t.attachments.length+' вложений':''}</div>
               </div>
             </button>
-            <button class="btn sm" data-use-template="${t.id}">Создать</button>
+            <button class="btn sm" data-use-template="${t.id}">Создать задачу</button>
           </div>
-        `).join('');
-      }
-      return `
-        <div class="folder-block">
-          <div class="folder-title" style="cursor:pointer;" data-toggle-template-folder="${folderId}">
-            ${foldersExpanded.has(folderId)?'📂':'📁'} ${f.name} · ${f.templates.length}
-          </div>
-          <div id="${folderId}" style="${foldersExpanded.has(folderId)?'':'display:none;'}">
-            ${f.templates.map(t=>`
-              <div class="tmpl-card">
-                <button data-open-template="${t.id}" style="display:flex; align-items:center; gap:12px; flex:1; text-align:left; border:none; background:none; padding:0;">
-                  <span class="tag">📋</span>
-                  <div style="flex:1;">
-                    <div class="name">${t.name}</div>
-                    <div class="desc">${t.ingredients.length} ингредиентов${t.instructions?' · есть рецепт':''}${t.attachments&&t.attachments.length?' · '+t.attachments.length+' вложений':''}</div>
-                  </div>
-                </button>
-                <button class="btn sm" data-use-template="${t.id}">Создать</button>
-              </div>
-            `).join('')}
-          </div>
-        </div>
-      `;
-    }).join('')}
+        `).join('')}
+      </div>
+    `).join('')}
     <button class="btn secondary block" data-new-template="${p.id}">+ Новый шаблон</button>
   `;
 }
@@ -1502,7 +1457,7 @@ function viewSettings(){
         <span style="color:var(--text-faint);">⇄</span>
       </div>
       <div class="settings-row">
-        <div><div class="lbl">☁️ Облачная синхронизация</div><div class="sub" id="cloudStatus">Авто-синхронизация каждые 30 сек${window.__lastCloudSync?` · Последняя: ${new Date(window.__lastCloudSync).toLocaleTimeString('ru-RU')}`:''}</div></div>
+        <div><div class="lbl">☁️ Облачная синхронизация</div><div class="sub" id="cloudStatus">Supabase · подключено</div></div>
         <span style="color:var(--sage);">✓</span>
       </div>
       <div class="settings-row" style="cursor:pointer;" data-cloud-sync>
@@ -1621,8 +1576,6 @@ function bindViewEvents(){
   document.querySelectorAll('[data-open-template]').forEach(b=>b.onclick=()=>openTemplateDetail(b.dataset.openTemplate));
   document.querySelectorAll('[data-new-template]').forEach(b=>b.onclick=()=>openCreateTemplateInProject(b.dataset.newTemplate));
   document.querySelectorAll('[data-invite]').forEach(b=>b.onclick=()=>openInvite(b.dataset.invite));
-  document.querySelectorAll('[data-edit-project]').forEach(b=>b.onclick=()=>openEditProject(b.dataset.editProject));
-  document.querySelectorAll('[data-delete-project]').forEach(b=>b.onclick=()=>deleteProject(b.dataset.deleteProject));
   document.querySelectorAll('[data-open-guide]').forEach(b=>b.onclick=openGuide);
   document.querySelectorAll('[data-edit-profile]').forEach(b=>b.onclick=openEditProfile);
   document.querySelectorAll('[data-rename-guide]').forEach(b=>b.onclick=openRenameGuide);
@@ -1666,11 +1619,6 @@ function bindViewEvents(){
   };
   document.querySelectorAll('[data-merged-assignee-date]').forEach(b=>b.onclick=()=>{
     state.mergedAssignees[b.dataset.mergedAssigneeDate] = b.dataset.v;
-    render();
-  });
-  document.querySelectorAll('[data-toggle-template-folder]').forEach(b=>b.onclick=()=>{
-    const id = b.dataset.toggleTemplateFolder;
-    if(foldersExpanded.has(id)) foldersExpanded.delete(id); else foldersExpanded.add(id);
     render();
   });
   const guideAddBtn = document.getElementById('guideAddBtn');
@@ -1988,59 +1936,6 @@ function openCreateProject(){
   });
 }
 
-function openEditProject(id){
-  const p = projectById(id);
-  if(!p) return;
-  openModal(`
-    <div class="sheet-title">Редактировать проект</div>
-    <div class="field" style="margin-top:14px;"><label>Название</label><input type="text" id="epName" value="${p.name}"></div>
-    <div class="field"><label>Иконка</label>
-      <div class="chip-select" id="epIcon">
-        ${['📁','🏡','🚗','💪','🎓','🌱','🐶','🍳','💼','🧹','🛒'].map(e=>`<button data-v="${e}" class="${p.icon===e?'active':''}">${e}</button>`).join('')}
-      </div>
-    </div>
-    <div class="field"><label>Тип</label>
-      <div class="chip-select" id="epType">
-        <button data-v="personal" class="${p.type==='personal'?'active':''}">Личный</button>
-        <button data-v="shared" class="${p.type==='shared'?'active':''}">Общий</button>
-      </div>
-    </div>
-    <button class="btn block" id="epSave">Сохранить</button>
-    <button class="btn danger block" id="epDelete" style="margin-top:8px;">Удалить проект</button>
-  `, ()=>{
-    let icon = p.icon, type = p.type;
-    document.querySelectorAll('#epIcon button').forEach(b=>b.onclick=()=>{ icon=b.dataset.v; document.querySelectorAll('#epIcon button').forEach(x=>x.classList.remove('active')); b.classList.add('active'); });
-    document.querySelectorAll('#epType button').forEach(b=>b.onclick=()=>{ type=b.dataset.v; document.querySelectorAll('#epType button').forEach(x=>x.classList.remove('active')); b.classList.add('active'); });
-    document.getElementById('epSave').onclick = ()=>{
-      const name = document.getElementById('epName').value.trim();
-      if(!name){ toast('Введите название'); return; }
-      p.name = name; p.icon = icon; p.type = type;
-      if(type==='shared' && p.members.length<2) p.members = ['asya','stepa'];
-      if(type==='personal') p.members = [state.currentUserId];
-      closeModal();
-      toast('Проект обновлён');
-    };
-    document.getElementById('epDelete').onclick = ()=>{
-      if(!confirm(`Удалить проект «${p.name}» и все его задачи?`)) return;
-      state.tasks = state.tasks.filter(t=>t.projectId!==id);
-      state.projects = state.projects.filter(pr=>pr.id!==id);
-      closeModal();
-      navigate('projects');
-      toast('Проект удалён');
-    };
-  });
-}
-
-function deleteProject(id){
-  const p = projectById(id);
-  if(!p) return;
-  if(!confirm(`Удалить проект «${p.name}» и все задачи в нём?`)) return;
-  state.tasks = state.tasks.filter(t=>t.projectId!==id);
-  state.projects = state.projects.filter(pr=>pr.id!==id);
-  navigate('projects');
-  toast('Проект удалён');
-}
-
 function openCreateTemplateFromMenu(){
   const templateProjects = state.projects.filter(p=>p.type==='template');
   const nonTemplateProjects = state.projects.filter(p=>p.type!=='template');
@@ -2144,50 +2039,29 @@ function openCreateTemplateInProject(projectId){
 
   openModal(`
     <div class="sheet-title">Новый шаблон в «${p.name}»</div>
-    <div class="field" style="margin-top:14px;"><label>Название</label><input type="text" id="nTName" placeholder="Например: Овсянка с ягодами"></div>
-    <div class="field"><label>Папка (необязательно)</label>
+    <div class="field" style="margin-top:14px;"><label>Название шаблона</label><input type="text" id="nTName" placeholder="Например: Овсянка с ягодами"></div>
+    <div class="field"><label>Папка</label>
       <div class="chip-select" id="nTFolder">
-        <button data-v="none" class="active">📋 Без папки</button>
-        ${folders.map((f,i)=>`<button data-v="${i}">📁 ${f.name}</button>`).join('')}
-        <button data-v="new">📁 Новая папка</button>
+        ${folders.length? folders.map((f,i)=>`<button data-v="${i}" class="${i===0?'active':''}">📁 ${f.name}</button>`).join('') + `<button data-v="new">📁 Новая папка</button>` : `<button data-v="new" class="active">📁 Новая папка</button>`}
       </div>
-      <div id="nTNewFolderWrap" style="display:none; margin-top:8px;">
+      <div id="nTNewFolderWrap" style="${folders.length?'display:none;':''} margin-top:8px;">
         <input type="text" id="nTNewFolder" class="mini-input" placeholder="Название новой папки">
       </div>
     </div>
-    <div class="field"><label>Инструкция</label><textarea id="nTInstructions" placeholder="Как готовить, что делать" style="min-height:60px;"></textarea></div>
-    <div class="field"><label>Ингредиенты</label>
-      <div id="nTIngredients"></div>
-      <div style="display:grid; grid-template-columns:1.3fr 0.7fr 0.7fr; gap:6px; margin-top:6px;">
-        <input type="text" id="nTIngName" class="mini-input" placeholder="Название">
-        <input type="number" id="nTIngAmount" class="mini-input" placeholder="Кол-во">
-        <input type="text" id="nTIngUnit" class="mini-input" placeholder="Ед.">
-      </div>
-      <button class="btn secondary sm" id="nTIngAdd" type="button" style="margin-top:6px;">+ Добавить</button>
-    </div>
+    <div class="field"><label>Инструкция (необязательно)</label><textarea id="nTInstructions" placeholder="Как готовить, что делать" style="min-height:70px;"></textarea></div>
     <button class="btn block" id="nTSave" style="margin-top:8px;">Создать шаблон</button>
   `, ()=>{
-    let folderMode = 'none'; // 'none' | index | 'new'
-    let builtIngredients = [];
-    const renderIngs = ()=>{
-      document.getElementById('nTIngredients').innerHTML = builtIngredients.map((ing,i)=>`
-        <div class="checklist-row"><span class="txt" style="font-size:13px;">${ing.name} — ${ing.amount} ${ing.unit}</span><button class="btn ghost sm" data-rm-ing="${i}" type="button">×</button></div>
-      `).join('');
-      document.querySelectorAll('[data-rm-ing]').forEach(b=>b.onclick=()=>{ builtIngredients.splice(Number(b.dataset.rmIng),1); renderIngs(); });
-    };
-    const addIngredient = ()=>{
-      const name = document.getElementById('nTIngName').value.trim();
-      if(!name) return;
-      builtIngredients.push({ name, amount: Number(document.getElementById('nTIngAmount').value)||0, unit: document.getElementById('nTIngUnit').value.trim() });
-      document.getElementById('nTIngName').value=''; document.getElementById('nTIngAmount').value=''; document.getElementById('nTIngUnit').value='';
-      renderIngs();
-    };
-    document.getElementById('nTIngAdd').onclick = addIngredient;
-    document.getElementById('nTIngName').onkeydown = (e)=>{ if(e.key==='Enter'){ e.preventDefault(); addIngredient(); } };
+    let folderIndex = 0;
+    let isNewFolder = !folders.length;
 
-    const syncFolder = ()=>{ document.getElementById('nTNewFolderWrap').style.display = folderMode==='new'?'block':'none'; };
+    const syncFolder = ()=>{
+      document.getElementById('nTNewFolderWrap').style.display = isNewFolder?'block':'none';
+    };
+    syncFolder();
+
     document.querySelectorAll('#nTFolder button').forEach(b=>b.onclick=()=>{
-      folderMode = b.dataset.v;
+      if(b.dataset.v==='new'){ isNewFolder=true; }
+      else { isNewFolder=false; folderIndex=Number(b.dataset.v); }
       document.querySelectorAll('#nTFolder button').forEach(x=>x.classList.remove('active'));
       b.classList.add('active');
       syncFolder();
@@ -2195,21 +2069,17 @@ function openCreateTemplateInProject(projectId){
 
     document.getElementById('nTSave').onclick = ()=>{
       const name = document.getElementById('nTName').value.trim();
-      if(!name){ toast('Введите название'); return; }
-      addIngredient();
+      if(!name){ toast('Введите название шаблона'); return; }
       const instructions = document.getElementById('nTInstructions').value.trim();
-      const newTemplate = { id:uid('tp'), name, instructions, attachments:[], ingredients: builtIngredients };
-      if(!state.templateFolders[projectId]) state.templateFolders[projectId] = [];
-      if(folderMode==='new'){
-        const folderName = document.getElementById('nTNewFolder').value.trim() || 'Без названия';
+      const newTemplate = { id:uid('tp'), name, instructions, attachments:[], ingredients:[] };
+
+      if(isNewFolder){
+        const folderName = document.getElementById('nTNewFolder').value.trim();
+        if(!folderName){ toast('Введите название папки'); return; }
+        if(!state.templateFolders[projectId]) state.templateFolders[projectId] = [];
         state.templateFolders[projectId].push({ name:folderName, templates:[newTemplate] });
-      } else if(folderMode==='none'){
-        if(!state.templateFolders[projectId][0] || state.templateFolders[projectId][0].name!=='_root_'){
-          state.templateFolders[projectId].unshift({ name:'_root_', templates:[] });
-        }
-        state.templateFolders[projectId][0].templates.push(newTemplate);
       } else {
-        state.templateFolders[projectId][Number(folderMode)].templates.push(newTemplate);
+        state.templateFolders[projectId][folderIndex].templates.push(newTemplate);
       }
       closeModal();
       toast('Шаблон создан');
@@ -2608,77 +2478,86 @@ function openTaskDetail(id){
   const checkPct = t.checklist.length? Math.round(t.checklist.filter(c=>c.done).length/t.checklist.length*100):null;
 
   openModal(`
-    <div style="display:flex; align-items:flex-start; gap:10px;">
+    <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:10px;">
       <button class="check ${t.done?'done':''}" data-tt="${t.id}" style="margin-top:2px; flex-shrink:0;">${t.done?'✓':''}</button>
       <div style="flex:1;">
         <input type="text" id="editTitle" class="mini-input" value="${t.title.replace(/"/g,'&quot;')}" style="font-weight:700; font-size:15px; border:none; padding:4px 0; background:transparent; color:var(--text); width:100%;">
-        <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap; margin-top:4px;">
-          <button class="chip" id="projChip" data-change-project="${t.id}" style="cursor:pointer;">${p?p.icon+' '+p.name:'🗂️ Без проекта'}</button>
-          <input type="date" id="editDate" value="${t.date}" class="mini-input" style="width:auto; min-width:120px; font-size:11px; padding:4px 8px;">
-          <input type="number" id="editTime" value="${t.planned}" min="5" step="5" class="mini-input" style="width:64px; font-size:11px; padding:4px 8px;" title="Минут">
+        <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:6px;">
+          <span class="chip" id="projLabel">${p?p.icon+' '+p.name:'🗂️ Без проекта'}</span>
           ${t.recurringGroup?`<span class="chip">🔁 ${freqLabel(t.recurringFreq, t.recurringInterval)}</span>`:''}
         </div>
       </div>
     </div>
 
-    <div class="field" style="margin-top:10px;"><label>Ответственный</label>
+    <div class="field" style="margin-top:14px;"><label>Проект</label>
+      <div class="chip-select" id="taskProject">
+        ${[{id:'none',icon:'🗂️',name:'Без проекта',type:'none'},...state.projects.filter(pr=>pr.type!=='template')].map(pr=>`<button data-v="${pr.id}" class="${(t.projectId||'none')===pr.id?'active':''}">${pr.icon} ${pr.name}</button>`).join('')}
+      </div>
+    </div>
+
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:16px;">
+      <div class="field" style="margin-bottom:0;"><label>Дата</label><input type="date" id="editDate" value="${t.date}"></div>
+      <div class="field" style="margin-bottom:0;"><label>Время (мин)</label><input type="number" id="editTime" value="${t.planned}" min="5" step="5"></div>
+    </div>
+
+    <div class="field"><label>Ответственный</label>
       <div class="chip-select" id="taskAssignee">
         ${state.users.map(u=>`<button data-v="${u.id}" class="${u.id===t.assignee?'active':''}">${u.emoji} ${u.name}</button>`).join('')}
       </div>
     </div>
 
+    <button class="btn secondary sm block" id="saveTaskBtn" style="margin-bottom:16px;">💾 Сохранить изменения</button>
+
     <div class="folder-title">☑️ Чек-лист ${checkPct!==null?`· ${checkPct}%`:''}</div>
     <div id="checklistBox">${renderChecklist(t)}</div>
-    <div style="display:flex; gap:8px; margin:8px 0 14px;">
+    <div style="display:flex; gap:8px; margin:8px 0 18px;">
       <input type="text" id="newCheckText" class="mini-input" placeholder="Добавить пункт">
-      <button class="btn sm" id="addCheckBtn">+</button>
+      <button class="btn sm" id="addCheckBtn">Добавить</button>
     </div>
+
+    <div class="folder-title">📎 Вложения</div>
+    ${t.attachments.length? t.attachments.map(a=>`
+      <div class="attach-row"><div><div class="t">${a.title}</div>${a.url?`<a href="#">${a.url}</a>`:''}</div>${a.price?`<div class="p">${a.price}</div>`:''}</div>
+    `).join('') : `<div class="proj-sub" style="margin-bottom:12px;">Нет вложений</div>`}
 
     <div class="folder-title">💬 Обсуждение</div>
     <div id="commentsBox">${t.comments.map(c=>`
       <div class="comment"><div class="who">${userById(c.author).name}</div><div class="txt">${c.text}</div><div class="when">${c.date}</div></div>
-    `).join('') || `<div class="proj-sub" style="margin-bottom:8px;">Пока нет комментариев</div>`}</div>
+    `).join('') || `<div class="proj-sub" style="margin-bottom:12px;">Пока нет комментариев</div>`}</div>
     <div style="display:flex; gap:8px; margin-top:8px;">
       <input type="text" id="newComment" class="mini-input" placeholder="Написать комментарий">
-      <button class="btn sm" id="addCommentBtn">→</button>
+      <button class="btn sm" id="addCommentBtn">Отправить</button>
     </div>
 
-    <button class="btn danger block" style="margin-top:16px;" id="deleteTaskBtn">Удалить задачу</button>
-  `, ()=>{
-    const save = ()=>{
-      const newTitle = document.getElementById('editTitle')?.value.trim();
-      if(newTitle) t.title = newTitle;
-      t.date = document.getElementById('editDate')?.value || t.date;
-      t.planned = Number(document.getElementById('editTime')?.value) || 15;
-      state.route = state.route; render();
-    };
-
-    document.querySelector('[data-tt]').onclick = ()=>{ toggleTask(t.id); openTaskDetail(t.id); };
-    document.getElementById('editTitle').onblur = save;
-    document.getElementById('editDate').onchange = save;
-    document.getElementById('editTime').onchange = save;
+    <button class="btn danger block" style="margin-top:20px;" id="deleteTaskBtn">Удалить задачу</button>
   `, ()=>{
     document.querySelector('[data-tt]').onclick = ()=>{ toggleTask(t.id); openTaskDetail(t.id); };
 
-    document.querySelector('[data-change-project]').onclick = (e)=>{
-      e.stopPropagation();
-      const projects = [{id:'none',icon:'🗂️',name:'Без проекта'}, ...state.projects.filter(pr=>pr.type!=='template')];
-      const html = projects.map(pr=>`<button style="display:block;width:100%;text-align:left;padding:10px 14px;border:none;background:none;font-size:14px;cursor:pointer;" data-sel-proj="${pr.id}">${pr.icon} ${pr.name}</button>`).join('');
-      const sheet = document.getElementById('sheet');
-      const div = document.createElement('div');
-      div.innerHTML = `<div class="sheet-title">Выберите проект</div><div style="margin-top:8px;">${html}</div>`;
-      const old = sheet.querySelector('.sheet-title');
-      if(old) old.parentNode.replaceChild(div, old.parentNode.firstChild);
-      div.querySelectorAll('[data-sel-proj]').forEach(b=>b.onclick=()=>{
-        t.projectId = b.dataset.selProj==='none'? null : b.dataset.selProj;
-        openTaskDetail(t.id);
-        toast('Проект изменён');
-      });
-      return false;
+    document.getElementById('saveTaskBtn').onclick = ()=>{
+      const newTitle = document.getElementById('editTitle').value.trim();
+      if(!newTitle){ toast('Название не может быть пустым'); return; }
+      t.title = newTitle;
+      t.date = document.getElementById('editDate').value || t.date;
+      t.planned = Number(document.getElementById('editTime').value) || 15;
+      const projBtn = document.querySelector('#taskProject button.active');
+      if(projBtn){
+        t.projectId = projBtn.dataset.v==='none'? null : projBtn.dataset.v;
+      }
+      closeModal();
+      toast('Задача обновлена');
     };
+
+    document.querySelectorAll('#taskProject button').forEach(b=>b.onclick=()=>{
+      document.querySelectorAll('#taskProject button').forEach(x=>x.classList.remove('active'));
+      b.classList.add('active');
+      document.getElementById('projLabel').textContent = b.textContent.trim();
+    });
+
     document.querySelectorAll('#taskAssignee button').forEach(b=>b.onclick=()=>{
       t.assignee = b.dataset.v;
-      save();
+      document.querySelectorAll('#taskAssignee button').forEach(x=>x.classList.remove('active'));
+      b.classList.add('active');
+    });
     bindChecklistEvents(t);
     document.getElementById('addCheckBtn').onclick = ()=>{
       const v = document.getElementById('newCheckText').value.trim();
@@ -2722,7 +2601,6 @@ function bindChecklistEvents(t){
 /* ============ INIT ============ */
 try {
   loadState();
-  startAutoSync();
   if(state.notificationsEnabled && 'Notification' in window && Notification.permission==='granted'){
     startNotificationPolling();
   }
