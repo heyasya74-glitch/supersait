@@ -586,6 +586,8 @@ async function testCloudConnection(){
     }
   } catch(e){ toast('✗ Сеть не доступна: '+e.message); }
 }
+
+async function cloudSyncNow(){
   try {
     toast('Синхронизация...');
     const cloudData = await loadFromCloud();
