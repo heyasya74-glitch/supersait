@@ -1206,7 +1206,7 @@ function mergedIngredientsCard(dateStr){
   const assignee = userById(getMergedAssignee(dateStr));
 
   return `
-    <div class="card" style="background:var(--gold-soft); border-color:#E8D6A0; margin-top:14px;">
+    <div class="card" style="background:#F8F6EE; border-color:#E8E3D0; margin-top:14px;">
       <div class="folder-title" style="color:#8a6b16;">📋 Список продуктов</div>
       ${allItems.length? allItems.map(i=>`
         <div class="checklist-row ${i.done?'done':''}">
@@ -2718,7 +2718,7 @@ function openTaskDetail(id){
         <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap; margin-top:4px;">
           <button class="chip" data-change-project="${t.id}" style="cursor:pointer;">${p?p.icon+' '+p.name:'🗂️ Без проекта'}</button>
           <input type="date" id="editDate" value="${t.date}" class="mini-input" style="width:auto; min-width:120px; font-size:11px; padding:4px 8px;">
-          <input type="number" id="editTime" value="${t.planned}" min="5" step="5" class="mini-input" style="width:60px; font-size:11px; padding:4px 8px;" title="Минут">
+          <input type="number" id="editTime" value="${t.planned}" min="5" step="5" class="mini-input" style="width:56px; font-size:11px; padding:4px 6px;" title="Минут"><span style="font-size:10px; color:var(--text-soft);">мин</span>
           ${t.recurringGroup?`<span class="chip">🔁 ${freqLabel(t.recurringFreq, t.recurringInterval)}</span>`:''}
         </div>
       </div>
@@ -2751,12 +2751,13 @@ function openTaskDetail(id){
     </div>
     <button class="btn ghost sm" data-remove-second-checklist style="margin-bottom:10px; color:var(--clay);">Убрать второй чек-лист</button>
     ` : `
-    <div class="folder-title">☑️ Чек-лист ${checkPct!==null?`· ${checkPct}%`:''} ${!hasSecond?`<button class="btn ghost sm" data-add-second-checklist style="float:right;">+ второй список</button>`:''}</div>
+    <div class="folder-title">☑️ Чек-лист ${checkPct!==null?`· ${checkPct}%`:''}</div>
     <div id="checklistBox">${renderChecklistItems(t.checklist, t.id, 'c')}</div>
     <div style="display:flex; gap:8px; margin:8px 0 14px;">
       <input type="text" id="newCheckText" class="mini-input" placeholder="Добавить пункт">
       <button class="btn sm" id="addCheckBtn">+</button>
     </div>
+    ${!hasSecond?`<button class="btn secondary sm block" id="addSecondChecklistBtn" style="margin-bottom:10px;">👥 Добавить второй чек-лист</button>`:''}
     `}
 
     <div class="folder-title">💬 Обсуждение</div>
@@ -2829,7 +2830,7 @@ function openTaskDetail(id){
       openTaskDetail(t.id);
     });
 
-    const addSecondBtn = document.querySelector('[data-add-second-checklist]');
+    const addSecondBtn = document.getElementById('addSecondChecklistBtn');
     if(addSecondBtn) addSecondBtn.onclick = ()=>{
       const other = state.users.find(u=>u.id!==t.assignee);
       t.secondaryChecklist = [];
@@ -2867,6 +2868,7 @@ function renderChecklistItems(list, taskId, prefix){
       <button class="check ${c.done?'done':''}" data-ck-${prefix}="${c.id}" style="width:19px;height:19px;font-size:10px;">${c.done?'✓':''}</button>
       <span class="txt" style="${c.done?'text-decoration:line-through;color:var(--text-faint);':''} font-size:13px;">${c.text}</span>
       ${c.amount!=null?`<span style="margin-left:auto; font-size:11px; color:var(--text-soft);">${c.amount} ${c.unit||''}</span>`:''}
+      <button class="btn ghost sm" data-rm-ck-${prefix}="${c.id}" style="margin-left:4px;">×</button>
     </div>
   `).join('');
 }
@@ -2891,10 +2893,18 @@ function bindChecklistEvents(t){
     const item = t.secondaryChecklist.find(c=>c.id===b.dataset.ckSc);
     if(item){ item.done = !item.done; syncTaskDoneFromChecklist(t); openTaskDetail(t.id); }
   });
-  // Legacy support
   document.querySelectorAll('[data-ck]').forEach(b=>b.onclick=()=>{
     const item = t.checklist.find(c=>c.id===b.dataset.ck);
     if(item){ item.done = !item.done; syncTaskDoneFromChecklist(t); openTaskDetail(t.id); }
+  });
+  document.querySelectorAll('[data-rm-ck-c]').forEach(b=>b.onclick=()=>{
+    t.checklist = t.checklist.filter(c=>c.id!==b.dataset.rmCkC);
+    syncTaskDoneFromChecklist(t); openTaskDetail(t.id);
+  });
+  document.querySelectorAll('[data-rm-ck-sc]').forEach(b=>b.onclick=()=>{
+    if(!t.secondaryChecklist) return;
+    t.secondaryChecklist = t.secondaryChecklist.filter(c=>c.id!==b.dataset.rmCkSc);
+    syncTaskDoneFromChecklist(t); openTaskDetail(t.id);
   });
 }
 
