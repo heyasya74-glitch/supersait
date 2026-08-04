@@ -1,0 +1,2087 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Хозяйство — планировщик жизни</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;600;700&family=Golos+Text:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#F5F4EE;
+  --surface:#FFFFFF;
+  --surface-alt:#ECEAE0;
+  --text:#25241F;
+  --text-soft:#726F63;
+  --text-faint:#A5A192;
+  --line:#E4E1D3;
+  --sage:#5E8062;
+  --sage-soft:#DEE8DD;
+  --blue:#51708F;
+  --blue-soft:#DEE6ED;
+  --clay:#B5654B;
+  --clay-soft:#F2DFD8;
+  --gold:#B8901F;
+  --gold-soft:#F3E6C4;
+  --radius-lg:22px;
+  --radius-md:16px;
+  --radius-sm:10px;
+  --shadow:0 1px 2px rgba(37,36,31,0.04), 0 8px 24px rgba(37,36,31,0.06);
+}
+[data-theme="dark"]{
+  --bg:#1a1a18;
+  --surface:#282824;
+  --surface-alt:#302f2b;
+  --text:#e4e2d5;
+  --text-soft:#a5a190;
+  --text-faint:#6a6860;
+  --line:#3a3830;
+  --sage:#78a37c;
+  --sage-soft:#2b3628;
+  --blue:#6d8aa5;
+  --blue-soft:#242b32;
+  --clay:#c47a5e;
+  --clay-soft:#332420;
+  --gold:#c9a032;
+  --gold-soft:#342b18;
+}
+[data-theme="dark"] .note-card{
+  background:#342b18; background-image: repeating-linear-gradient(to bottom, transparent, transparent 26px, rgba(154,116,20,0.25) 27px);
+  border-color:#5a4a1a;
+}
+[data-theme="dark"] .note-card p{color:#d4b430;}
+[data-theme="dark"] .note-card .tape{background:rgba(184,144,31,0.35);}
+[data-theme="dark"] .note-attrib{color:#b09030;}
+[data-theme="dark"] .bottom-nav{background:rgba(40,40,36,0.94);}
+[data-theme="dark"] .switch{background:var(--text-faint);}
+[data-theme="dark"] .mini-input, [data-theme="dark"] .field input, [data-theme="dark"] .field select, [data-theme="dark"] .field textarea{background:var(--surface-alt); color:var(--text);}
+[data-theme="dark"] .search-input-wrap{background:var(--surface);}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{
+  background:var(--bg);
+  color:var(--text);
+  font-family:'Golos Text', system-ui, sans-serif;
+  -webkit-font-smoothing:antialiased;
+  min-height:100vh;
+}
+h1,h2,h3,.display{font-family:'Unbounded', system-ui, sans-serif; font-weight:600; letter-spacing:-0.01em;}
+button{font-family:inherit; cursor:pointer;}
+a{color:inherit;}
+::-webkit-scrollbar{width:0;height:0;}
+
+/* ---------- APP SHELL ---------- */
+#app{display:flex; min-height:100vh;}
+
+.main-col{flex:1; min-width:0; display:flex; flex-direction:column;}
+
+.topbar{
+  display:flex; align-items:center; gap:10px;
+  padding:16px 18px 6px;
+}
+.topbar-title-wrap{flex:1; min-width:0;}
+.topbar-greeting{font-family:'Unbounded'; font-size:19px; font-weight:600;}
+.topbar-sub{font-size:12.5px; color:var(--text-soft); margin-top:2px;}
+.icon-btn{
+  width:38px;height:38px;border-radius:12px;border:1px solid var(--line);
+  background:var(--surface); display:flex; align-items:center; justify-content:center;
+  font-size:16px; color:var(--text-soft); flex-shrink:0;
+}
+
+#view{flex:1; padding:10px 16px 100px; max-width:980px; width:100%; margin:0 auto;}
+
+/* ---------- SIDE DRAWER (menu, search, users) ---------- */
+.drawer-overlay{position:fixed; inset:0; background:rgba(30,28,20,0.42); z-index:110; display:flex;}
+.drawer-panel{
+  background:var(--surface); width:80%; max-width:300px; height:100%; padding:22px 16px;
+  box-shadow:6px 0 30px rgba(0,0,0,0.18); display:flex; flex-direction:column; gap:4px;
+  animation:drawerSlide .18s ease;
+}
+@keyframes drawerSlide{from{transform:translateX(-100%);} to{transform:translateX(0);}}
+.side-link{
+  display:flex; align-items:center; gap:12px;
+  padding:11px 12px; border-radius:12px; border:none; background:none;
+  font-size:14.5px; color:var(--text-soft); text-align:left; width:100%;
+  transition:background .15s, color .15s;
+}
+.side-link .ic{font-size:17px;}
+.side-link:hover{background:var(--surface-alt); color:var(--text);}
+.side-link.active{background:var(--sage-soft); color:var(--sage); font-weight:600;}
+.side-users{margin-top:auto; padding-top:14px; border-top:1px solid var(--line);}
+.side-user-row{display:flex; align-items:center; gap:10px; padding:8px 12px; border-radius:12px;}
+.side-user-row .who{font-size:13px; color:var(--text-soft);}
+.side-user-row .name{font-size:13.5px; font-weight:600;}
+
+/* ---------- BOTTOM NAV (always visible) ---------- */
+.bottom-nav{
+  position:fixed; left:0; right:0; bottom:0; z-index:40;
+  background:rgba(255,255,255,0.92); backdrop-filter:blur(10px);
+  border-top:1px solid var(--line);
+  display:flex; justify-content:center; gap:6px; align-items:center;
+  padding:8px 4px calc(8px + env(safe-area-inset-bottom));
+}
+.nav-item{
+  display:flex; flex-direction:column; align-items:center; gap:3px;
+  background:none; border:none; color:var(--text-faint); font-size:10.5px;
+  padding:4px 8px; border-radius:10px; min-width:52px;
+}
+.nav-item .ic{font-size:19px;}
+.nav-item.active{color:var(--sage); font-weight:600;}
+
+/* ---------- CARDS / GENERIC ---------- */
+.card{
+  background:var(--surface); border-radius:var(--radius-lg);
+  border:1px solid var(--line); box-shadow:var(--shadow);
+  padding:16px; margin-bottom:12px;
+}
+.section-title{
+  font-family:'Unbounded'; font-size:13px; font-weight:600;
+  text-transform:uppercase; letter-spacing:.06em; color:var(--text-soft);
+  margin:18px 2px 10px; display:flex; align-items:center; justify-content:space-between;
+}
+.section-title .more{font-family:'Golos Text'; text-transform:none; font-size:12.5px; color:var(--sage); font-weight:600; letter-spacing:0; cursor:pointer;}
+
+/* Napутствие card - signature element: static notebook note, no interaction */
+.note-card{
+  position:relative;
+  background:var(--gold-soft);
+  background-image: repeating-linear-gradient(to bottom, transparent, transparent 26px, rgba(154,116,20,0.20) 27px);
+  background-position: 0 4px;
+  border-radius:16px;
+  padding:20px 20px 16px;
+  margin-bottom:14px;
+  border:1px solid #E8D6A0;
+}
+.note-card .tape{
+  position:absolute; top:-9px; left:22px; width:52px; height:18px;
+  background:rgba(184,144,31,0.28); border-radius:2px; transform:rotate(-2deg);
+}
+.note-card p{font-family:'Unbounded'; font-size:14.5px; line-height:27px; margin:0; font-weight:500; color:#6b5410;}
+.note-attrib{font-size:11.5px; font-style:italic; color:#9c7a1e; margin-top:2px; text-align:right;}
+
+/* Tabs (Мои/Общие/Все) */
+.pill-tabs{display:flex; gap:6px; background:var(--surface-alt); padding:4px; border-radius:14px; margin-bottom:14px;}
+.pill-tabs button{flex:1; border:none; background:none; padding:9px 6px; border-radius:11px; font-size:13.5px; font-weight:600; color:var(--text-soft);}
+.pill-tabs button.active{background:var(--surface); color:var(--text); box-shadow:0 1px 3px rgba(0,0,0,0.08);}
+
+/* Task row */
+.task-block{border-bottom:1px solid var(--line);}
+.task-block:last-child{border-bottom:none;}
+.task-row{
+  display:flex; align-items:flex-start; gap:10px; padding:12px 4px;
+}
+.task-side{
+  display:flex; flex-direction:column; align-items:flex-end; gap:5px;
+  flex-shrink:0; min-width:64px; padding-top:1px;
+}
+.task-side .time-lbl{font-size:11.5px; color:var(--text-soft); font-weight:700; white-space:nowrap;}
+.mini-input{
+  border:1px solid var(--line); border-radius:10px; padding:8px 10px; font-size:13px;
+  font-family:inherit; background:var(--surface-alt); color:var(--text); width:100%;
+}
+.check{
+  width:23px; height:23px; border-radius:50%; border:2px solid var(--line);
+  flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:12px; color:#fff;
+  background:var(--surface);
+}
+.check.done{background:var(--sage); border-color:var(--sage);}
+.task-row.done .task-title{text-decoration:line-through; color:var(--text-faint);}
+.task-main{flex:1; min-width:0;}
+.task-title{font-size:14.5px; font-weight:500;}
+.task-meta{font-size:11.5px; color:var(--text-soft); margin-top:2px; display:flex; gap:6px; flex-wrap:wrap; align-items:center;}
+.chip{
+  display:inline-flex; align-items:center; gap:4px; padding:2px 8px; border-radius:20px;
+  font-size:11px; font-weight:600; background:var(--surface-alt); color:var(--text-soft);
+}
+.avatar{
+  width:22px; height:22px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+  font-size:12px; background:var(--blue-soft); flex-shrink:0;
+}
+.hashtag{font-weight:700;}
+.meta-ic{color:var(--text-soft);}
+.chevron-btn{
+  flex-shrink:0; display:flex; align-items:center; gap:3px; border:1px solid var(--line); background:var(--surface-alt);
+  color:var(--text-soft); font-size:11px; font-weight:700; padding:6px 9px; border-radius:20px;
+}
+.chevron-btn .arrow{transition:transform .15s; font-size:10px;}
+.chevron-btn.open{background:var(--sage-soft); color:var(--sage); border-color:var(--sage-soft);}
+.chevron-btn.open .arrow{transform:rotate(180deg);}
+.inline-checklist{padding:2px 4px 12px 45px;}
+.inline-checklist .checklist-row{padding:6px 2px;}
+
+/* Progress ring */
+.ring-wrap{position:relative; display:flex; align-items:center; justify-content:center;}
+.ring-num{position:absolute; font-family:'Unbounded'; font-weight:600;}
+
+.progress-bar{height:8px; border-radius:6px; background:var(--surface-alt); overflow:hidden; margin-top:8px;}
+.progress-bar > div{height:100%; background:var(--sage); border-radius:6px;}
+
+/* Home summary grid */
+.summary-grid{display:grid; grid-template-columns:1fr 1fr; gap:12px;}
+.summary-card{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius-md); padding:14px; box-shadow:var(--shadow);}
+.summary-card .big{font-family:'Unbounded'; font-size:22px; font-weight:600;}
+.summary-card .lbl{font-size:11.5px; color:var(--text-soft); margin-top:2px;}
+
+/* Projects grid */
+.proj-grid{display:grid; grid-template-columns:1fr 1fr; gap:12px;}
+.proj-card{
+  background:var(--surface); border:1px solid var(--line); border-radius:var(--radius-md);
+  padding:14px; box-shadow:var(--shadow); text-align:left; display:flex; flex-direction:column; gap:8px;
+}
+.proj-icon{
+  width:40px; height:40px; border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:19px;
+}
+.proj-name{font-size:14.5px; font-weight:700; font-family:'Unbounded';}
+.proj-sub{font-size:11.5px; color:var(--text-soft);}
+.proj-foot{display:flex; align-items:center; justify-content:space-between; margin-top:2px;}
+.avatar-stack{display:flex;}
+.avatar-stack .avatar{margin-left:-7px; border:2px solid var(--surface);}
+.avatar-stack .avatar:first-child{margin-left:0;}
+.template-badge{background:var(--gold-soft); color:var(--gold); font-size:10px; font-weight:700; padding:2px 7px; border-radius:20px;}
+
+/* Buttons */
+.btn{border:none; border-radius:12px; padding:11px 16px; font-size:14px; font-weight:600; background:var(--text); color:#fff;}
+.btn.secondary{background:var(--surface-alt); color:var(--text);}
+.btn.ghost{background:none; color:var(--sage); padding:8px 4px;}
+.btn.block{width:100%;}
+.btn.sm{padding:7px 12px; font-size:12.5px; border-radius:10px;}
+.btn.danger{background:var(--clay-soft); color:var(--clay);}
+
+/* Header w/ back */
+.view-header{display:flex; align-items:center; gap:10px; margin-bottom:14px; padding:2px;}
+.view-header h2{margin:0; font-size:18px;}
+.back-btn{
+  width:34px;height:34px;border-radius:10px;border:1px solid var(--line); background:var(--surface);
+  display:flex; align-items:center; justify-content:center; flex-shrink:0;
+}
+
+/* Calendar */
+.cal-grid{display:grid; grid-template-columns:repeat(7,1fr); gap:4px; text-align:center;}
+.cal-dow{font-size:10.5px; color:var(--text-faint); font-weight:700; padding-bottom:4px;}
+.cal-day{
+  aspect-ratio:1; border-radius:11px; display:flex; flex-direction:column; align-items:center; justify-content:center;
+  font-size:12.5px; background:var(--surface-alt); position:relative; gap:2px; border:1.5px solid transparent;
+}
+.cal-day.today{border-color:var(--sage);}
+.cal-day.selected{background:var(--text); color:#fff;}
+.cal-day.muted{opacity:0.32;}
+.cal-day .dots{display:flex; gap:2px;}
+.cal-day .dots span{width:4px; height:4px; border-radius:50%;}
+
+/* Modal / sheet */
+.overlay{
+  position:fixed; inset:0; background:rgba(30,28,20,0.42); z-index:100;
+  display:flex; align-items:flex-end; justify-content:center;
+}
+@media(min-width:640px){ .overlay{align-items:center;} }
+.sheet{
+  background:var(--surface); width:100%; max-width:480px; max-height:88vh; overflow-y:auto;
+  border-radius:24px 24px 0 0; padding:18px 18px 26px; box-shadow:0 -10px 40px rgba(0,0,0,0.2);
+}
+@media(min-width:640px){ .sheet{border-radius:24px; max-height:82vh;} }
+.sheet-handle{width:38px; height:4px; background:var(--line); border-radius:4px; margin:0 auto 14px;}
+.sheet-title{font-family:'Unbounded'; font-size:17px; font-weight:600; margin-bottom:4px;}
+
+.field{margin-bottom:14px;}
+.field label{display:block; font-size:11.5px; font-weight:700; color:var(--text-soft); text-transform:uppercase; letter-spacing:.04em; margin-bottom:6px;}
+.field input, .field select, .field textarea{
+  width:100%; border:1px solid var(--line); border-radius:12px; padding:10px 12px; font-size:14px;
+  font-family:inherit; background:var(--surface-alt); color:var(--text);
+}
+.field textarea{resize:vertical; min-height:60px;}
+.chip-select{display:flex; gap:6px; flex-wrap:wrap;}
+.chip-select button{
+  border:1.5px solid var(--line); background:var(--surface); padding:8px 12px; border-radius:20px; font-size:13px; color:var(--text-soft); font-weight:600;
+}
+.chip-select button.active{border-color:var(--sage); background:var(--sage-soft); color:var(--sage);}
+
+.menu-list{display:flex; flex-direction:column; gap:8px;}
+.menu-list button{
+  display:flex; align-items:center; gap:12px; text-align:left; padding:14px; border-radius:14px;
+  border:1px solid var(--line); background:var(--surface-alt); font-size:14.5px; font-weight:600;
+}
+.menu-list button .ic{font-size:19px;}
+
+/* Task detail specifics */
+.checklist-row{display:flex; align-items:center; gap:10px; padding:8px 2px;}
+.checklist-row input[type=text]{border:none; background:none; font-size:14px; flex:1;}
+.checklist-row.done span.txt{text-decoration:line-through; color:var(--text-faint);}
+.comment{padding:10px 0; border-bottom:1px solid var(--line);}
+.comment:last-child{border-bottom:none;}
+.comment .who{font-size:12.5px; font-weight:700; margin-bottom:2px;}
+.comment .txt{font-size:13.5px; color:var(--text);}
+.comment .when{font-size:10.5px; color:var(--text-faint); margin-top:2px;}
+.attach-row{display:flex; justify-content:space-between; align-items:center; padding:10px 12px; background:var(--surface-alt); border-radius:12px; margin-bottom:8px;}
+.attach-row .t{font-size:13.5px; font-weight:600;}
+.attach-row .p{font-size:12px; color:var(--sage); font-weight:700; margin-top:2px;}
+.attach-row a{font-size:11.5px; color:var(--blue); text-decoration:underline;}
+
+.tabbar-inline{display:flex; gap:4px; margin-bottom:12px; border-bottom:1px solid var(--line);}
+.tabbar-inline button{border:none; background:none; padding:10px 4px; margin-right:16px; font-size:13.5px; font-weight:600; color:var(--text-soft); border-bottom:2px solid transparent;}
+.tabbar-inline button.active{color:var(--text); border-color:var(--sage);}
+
+.empty{text-align:center; padding:34px 12px; color:var(--text-soft);}
+.empty .ic{font-size:32px; margin-bottom:8px;}
+.empty p{font-size:13.5px; margin:2px 0;}
+
+.toast{
+  position:fixed; bottom:100px; left:50%; transform:translateX(-50%); z-index:200;
+  background:var(--text); color:#fff; padding:10px 18px; border-radius:24px; font-size:13px; font-weight:600;
+  box-shadow:0 8px 20px rgba(0,0,0,0.2); opacity:0; transition:opacity .25s, transform .25s; pointer-events:none;
+}
+.toast.show{opacity:1; transform:translateX(-50%) translateY(-6px);}
+
+.folder-block{margin-bottom:16px;}
+.folder-title{font-size:12.5px; font-weight:700; color:var(--text-soft); margin:0 2px 8px; text-transform:uppercase; letter-spacing:.05em;}
+.tmpl-card{background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:13px; margin-bottom:8px; display:flex; align-items:center; gap:12px; box-shadow:var(--shadow);}
+.tmpl-card .tag{font-size:19px;}
+.tmpl-card .name{font-weight:700; font-size:14px;}
+.tmpl-card .desc{font-size:11.5px; color:var(--text-soft); margin-top:1px;}
+
+.user-card{display:flex; align-items:center; gap:12px; padding:13px; background:var(--surface); border:1px solid var(--line); border-radius:16px; margin-bottom:10px; box-shadow:var(--shadow);}
+.user-card .av{width:46px; height:46px; border-radius:50%; font-size:21px;}
+.user-card .name{font-weight:700; font-size:15px;}
+.user-card .sub{font-size:12px; color:var(--text-soft); margin-top:1px;}
+
+.settings-row{display:flex; align-items:center; justify-content:space-between; padding:14px 4px; border-bottom:1px solid var(--line);}
+.settings-row:last-child{border-bottom:none;}
+.settings-row .lbl{font-size:14px; font-weight:600;}
+.settings-row .sub{font-size:11.5px; color:var(--text-soft); margin-top:2px;}
+.switch{width:42px; height:24px; border-radius:20px; background:var(--surface-alt); position:relative; border:none; flex-shrink:0;}
+.switch::after{content:''; position:absolute; top:2px; left:2px; width:20px; height:20px; border-radius:50%; background:#fff; box-shadow:0 1px 3px rgba(0,0,0,0.3); transition:left .15s;}
+.switch.on{background:var(--sage);}
+.switch.on::after{left:20px;}
+
+.search-input-wrap{display:flex; align-items:center; gap:8px; background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:11px 14px; margin-bottom:14px;}
+.search-input-wrap input{border:none; background:none; outline:none; font-size:14.5px; flex:1; color:var(--text); font-family:inherit;}
+
+@media(min-width:900px){
+  #view{padding:26px 32px 60px; max-width:1040px; margin:0 auto;}
+  .topbar{padding:20px 32px 0; max-width:1040px; margin:0 auto; width:100%;}
+  .summary-grid{grid-template-columns:repeat(4,1fr);}
+  .proj-grid{grid-template-columns:repeat(3,1fr);}
+  .bottom-nav{max-width:420px; left:50%; transform:translateX(-50%); border-radius:22px 22px 0 0;}
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="main-col">
+    <div class="topbar" id="topbar"></div>
+    <div id="view"></div>
+  </div>
+</div>
+<nav class="bottom-nav" id="bottomNav"></nav>
+<div id="drawerRoot"></div>
+<div id="modalRoot"></div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* ============ DATA ============ */
+let uidCounter = 100;
+const uid = (p='id') => `${p}_${++uidCounter}`;
+
+const state = {
+  currentUserId: 'asya',
+  route: { name: 'home', params: {} },
+  projectTab: 'mine', // mine | shared | all — "Мои" is the default/main view
+  calendarSelected: todayStr(),
+  mergedAssignees: {}, // dateKey -> userId, responsible for that day's merged shopping list
+
+  users: [
+    { id:'asya', name:'Ася', fullName:'Анастасия Доронина', email:'asya@example.com', emoji:'👩🏻', color:'var(--blue-soft)', text:'var(--blue)' },
+    { id:'stepa', name:'Стёпа', fullName:'Степан', email:'stepa@example.com', emoji:'🧑🏻', color:'var(--sage-soft)', text:'var(--sage)' },
+  ],
+
+  guide: {
+    title: 'Напутствие дня',
+    entries: [
+      { id:'g1', type:'quote', text:'Дисциплина — это форма заботы о будущем себе.', author:'', work:'' },
+      { id:'g2', type:'quote', text:'Маленькие шаги каждый день складываются в большой путь.', author:'', work:'' },
+      { id:'g3', type:'note', text:'Порядок в делах — это спокойствие в голове.' },
+      { id:'g4', type:'note', text:'Забота о доме — это тоже забота друг о друге.' },
+      { id:'g5', type:'quote', text:'Главным может быть только что-то одно. Многие вещи могут быть важными, но только одна – главной.', author:'Джей Попазан', work:'«Начни с главного»' },
+    ],
+  },
+
+  projects: [
+    { id:'dog', name:'Собака', icon:'🐶', type:'shared', accent:'sage', members:['asya','stepa'] },
+    { id:'home', name:'Дом и быт', icon:'🏠', type:'shared', accent:'blue', members:['asya','stepa'] },
+    { id:'work', name:'Работа', icon:'💼', type:'personal', accent:'clay', members:['asya'] },
+    { id:'recipes', name:'Рецепты', icon:'🍳', type:'template', accent:'gold', members:['asya','stepa'], targetProjectId:'home' },
+  ],
+
+  tasks: [
+    { id:'t1', projectId:'dog', title:'Купить корм', done:false, date:todayStr(), planned:15, assignee:'asya',
+      checklist:[], comments:[], attachments:[{title:'Корм Royal Canin 3кг', url:'ozon.ru', price:'2 340 ₽'}] },
+    { id:'t2', projectId:'dog', title:'Записать собаку к врачу', done:false, date:todayStr(), planned:20, assignee:'stepa',
+      checklist:[{id:'c1',text:'Узнать свободное время в клинике',done:false},{id:'c2',text:'Уточнить про прививку',done:false}], comments:[], attachments:[] },
+    { id:'t3', projectId:'home', title:'Купить продукты', done:false, date:todayStr(), planned:40, assignee:'asya',
+      checklist:[{id:'c3',text:'Молоко',done:true},{id:'c4',text:'Хлеб',done:false},{id:'c5',text:'Овощи',done:false}], comments:[
+        {author:'stepa', text:'Возьми ещё кофе, пожалуйста', date:'вчера'}
+      ], attachments:[] },
+    { id:'t4', projectId:'work', title:'Созвон', done:false, date:todayStr(), planned:30, assignee:'asya',
+      checklist:[], comments:[], attachments:[] },
+    { id:'t5', projectId:'dog', title:'Прививка от бешенства', done:false, date:addDays(todayStr(),3), planned:60, assignee:'stepa',
+      checklist:[], comments:[], attachments:[] },
+    { id:'t6', projectId:'home', title:'Генеральная уборка', done:false, date:addDays(todayStr(),1), planned:120, assignee:'stepa',
+      checklist:[{id:'c6',text:'Кухня',done:false},{id:'c7',text:'Ванная',done:false},{id:'c8',text:'Пропылесосить',done:false}], comments:[], attachments:[] },
+    { id:'t7', projectId:'dog', title:'Выгул утром', done:true, date:addDays(todayStr(),-1), planned:20, assignee:'asya',
+      checklist:[], comments:[], attachments:[] },
+    { id:'t8', projectId:'home', title:'Оплатить коммуналку', done:false, date:addDays(todayStr(),2), planned:10, assignee:'asya',
+      checklist:[], comments:[], attachments:[], recurringGroup:'rec_util', recurringFreq:'monthly', recurringInterval:1 },
+    { id:'t9', projectId:null, title:'Забрать посылку', done:false, date:todayStr(), planned:15, assignee:'asya',
+      checklist:[], comments:[], attachments:[] },
+  ],
+
+  templateFolders: {
+    recipes: [
+      { name:'Завтраки', templates:[
+        { id:'tp1', name:'Овсянка с ягодами', instructions:'Смешать хлопья с горячим молоком, оставить на 5 минут, добавить ягоды и мёд перед подачей.', attachments:[], ingredients:[
+          {name:'Овсяные хлопья', amount:200, unit:'г'},
+          {name:'Молоко', amount:300, unit:'мл'},
+          {name:'Ягоды', amount:100, unit:'г'},
+          {name:'Мёд', amount:1, unit:'ст.л.'},
+        ]},
+      ]},
+      { name:'Обеды', templates:[
+        { id:'tp2', name:'Лазанья', instructions:'Собрать слоями: соус — листы — фарш — бешамель — сыр, повторить, запекать 40 минут при 190°.', attachments:[], ingredients:[
+          {name:'Листы для лазаньи', amount:1, unit:'уп.'},
+          {name:'Фарш', amount:500, unit:'г'},
+          {name:'Соус бешамель', amount:400, unit:'мл'},
+          {name:'Сыр', amount:200, unit:'г'},
+          {name:'Томатный соус', amount:300, unit:'мл'},
+        ]},
+        { id:'tp3', name:'Цезарь', instructions:'Обжарить филе, порвать салат руками, смешать с соусом, сверху сухарики и пармезан.', attachments:[], ingredients:[
+          {name:'Куриное филе', amount:300, unit:'г'},
+          {name:'Салат романо', amount:1, unit:'шт'},
+          {name:'Пармезан', amount:50, unit:'г'},
+          {name:'Соус цезарь', amount:100, unit:'мл'},
+          {name:'Сухарики', amount:80, unit:'г'},
+        ]},
+      ]},
+    ]
+  },
+  shoppingItems: [], // { id, name, amount, unit, done, date }
+};
+
+let expandedTasks = new Set();
+let upcomingOpen = false;
+
+/* ============ THEME ============ */
+(function initTheme(){
+  const saved = localStorage.getItem('planner_theme');
+  if(saved==='dark') document.documentElement.setAttribute('data-theme','dark');
+})();
+function toggleTheme(){
+  const el = document.documentElement;
+  if(el.getAttribute('data-theme')==='dark'){
+    el.removeAttribute('data-theme');
+    localStorage.setItem('planner_theme','light');
+  } else {
+    el.setAttribute('data-theme','dark');
+    localStorage.setItem('planner_theme','dark');
+  }
+  render();
+}
+
+function todayStr(){ return dateKey(new Date()); }
+function dateKey(d){ return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
+function addDays(key, n){ const d=new Date(key); d.setDate(d.getDate()+n); return dateKey(d); }
+function userById(id){ return state.users.find(u=>u.id===id); }
+function projectById(id){ return id? state.projects.find(p=>p.id===id) : null; }
+function accentVar(name){ return `var(--${name})`; }
+function accentSoft(name){ return `var(--${name}-soft)`; }
+function doneSort(a,b){ return (a.done?1:0)-(b.done?1:0); }
+
+function fmtDateHuman(key){
+  const d = new Date(key);
+  const today = todayStr();
+  if(key===today) return 'Сегодня';
+  if(key===addDays(today,1)) return 'Завтра';
+  if(key===addDays(today,-1)) return 'Вчера';
+  return d.toLocaleDateString('ru-RU', {day:'numeric', month:'long'});
+}
+function fmtMinutes(min){
+  const h = Math.floor(min/60), m = min%60;
+  if(h===0) return `${m} мин`;
+  if(m===0) return `${h} ч`;
+  return `${h} ч ${m} мин`;
+}
+function nextDatesForFreq(startDateKey, freq, interval, count){
+  const dates=[];
+  const n = Math.max(1, Number(interval)||1);
+  for(let i=1;i<=count;i++){
+    const d = new Date(startDateKey);
+    if(freq==='daily') d.setDate(d.getDate()+n*i);
+    else if(freq==='weekly') d.setDate(d.getDate()+7*n*i);
+    else d.setMonth(d.getMonth()+n*i);
+    dates.push(dateKey(d));
+  }
+  return dates;
+}
+function freqLabel(freq, interval){
+  const n = interval||1;
+  const unitAbbrev = freq==='daily'?'дн.':freq==='weekly'?'нед.':'мес.';
+  return `каждые ${n} ${unitAbbrev}`;
+}
+function syncTaskDoneFromChecklist(t){
+  if(t.checklist.length>0){
+    t.done = t.checklist.every(c=>c.done);
+  }
+}
+function getMergedAssignee(dateStr){
+  if(state.mergedAssignees[dateStr]) return state.mergedAssignees[dateStr];
+  const relevant = state.tasks.filter(t=>t.date===dateStr && t.fromTemplate);
+  return (relevant[0] && relevant[0].assignee) || state.currentUserId;
+}
+
+/* ============ NAV / ROUTING ============ */
+const NAV_ITEMS = [
+  { key:'home', label:'Главная', ic:'🏡' },
+  { key:'projects', label:'Проекты', ic:'📁' },
+  { key:'calendar', label:'Календарь', ic:'📅' },
+  { key:'users', label:'Пользователи', ic:'👥' },
+  { key:'settings', label:'Ещё', ic:'⚙️' },
+];
+
+function navigate(name, params={}){
+  state.route = { name, params };
+  window.scrollTo(0,0);
+  render();
+}
+
+function toast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(window.__toastTimer);
+  window.__toastTimer = setTimeout(()=>t.classList.remove('show'), 1800);
+}
+
+/* ============ RENDER SHELL ============ */
+function render(){
+  renderBottomNav();
+  renderTopbar();
+  renderView();
+}
+
+function openDrawer(){
+  document.getElementById('drawerRoot').innerHTML = `
+    <div class="drawer-overlay" id="drawerOverlay">
+      <div class="drawer-panel">
+        <div class="search-input-wrap" style="margin-bottom:16px;">
+          <span>🔍</span>
+          <input type="text" id="drawerSearch" placeholder="Поиск задач и проектов">
+        </div>
+        <div style="display:flex; flex-direction:column; gap:2px;">
+          ${NAV_ITEMS.map(n=>`
+            <button class="side-link ${state.route.name===n.key?'active':''}" data-drawer-nav="${n.key}">
+              <span class="ic">${n.ic}</span>${n.label}
+            </button>`).join('')}
+        </div>
+        <div class="side-users">
+          ${state.users.map(u=>`
+            <div class="side-user-row">
+              <span class="avatar" style="background:${u.color}">${u.emoji}</span>
+              <div><div class="name">${u.name}</div><div class="who">${u.id===state.currentUserId?'это вы':'участник'}</div></div>
+            </div>`).join('')}
+        </div>
+      </div>
+    </div>
+  `;
+  document.getElementById('drawerOverlay').addEventListener('click', (e)=>{ if(e.target.id==='drawerOverlay') closeDrawer(); });
+  document.querySelectorAll('[data-drawer-nav]').forEach(b=>b.onclick=()=>{ closeDrawer(); navigate(b.dataset.drawerNav); });
+  const dsi = document.getElementById('drawerSearch');
+  dsi.onkeydown = (e)=>{ if(e.key==='Enter'){ const v=dsi.value; closeDrawer(); navigate('search',{q:v}); } };
+}
+function closeDrawer(){ document.getElementById('drawerRoot').innerHTML=''; }
+
+function renderBottomNav(){
+  const el = document.getElementById('bottomNav');
+  el.innerHTML = NAV_ITEMS.map(n=>`
+    <button class="nav-item ${state.route.name===n.key?'active':''}" data-nav="${n.key}">
+      <span class="ic">${n.ic}</span>${n.label}
+    </button>`).join('');
+  el.querySelectorAll('[data-nav]').forEach(b=>b.onclick=()=>navigate(b.dataset.nav));
+}
+
+function renderTopbar(){
+  const el = document.getElementById('topbar');
+  const titles = {
+    home:['',''],
+    projects:['Проекты','Личные и общие дела'],
+    calendar:['Календарь','Все задачи по датам'],
+    users:['Пользователи','Кто чем занят'],
+    settings:['Настройки','Профиль и приложение'],
+    search:['Поиск',''],
+    projectDetail:['',''],
+    userDetail:['',''],
+    guideFeed:['',''],
+  };
+  const [t,s] = titles[state.route.name] || ['',''];
+  el.innerHTML = `
+    <button class="icon-btn" id="menuBtn" title="Меню">☰</button>
+    <div class="topbar-title-wrap">
+      ${t?`<div class="topbar-greeting">${t}</div>`:''}
+      ${s?`<div class="topbar-sub">${s}</div>`:''}
+    </div>
+    <button class="icon-btn" id="createBtn" title="Создать">+</button>
+  `;
+  document.getElementById('menuBtn').onclick = openDrawer;
+  document.getElementById('createBtn').onclick = openCreateMenu;
+}
+
+function renderView(){
+  const el = document.getElementById('view');
+  const r = state.route;
+  const map = {
+    home: viewHome,
+    projects: viewProjects,
+    projectDetail: ()=>viewProjectDetail(r.params.id),
+    calendar: viewCalendar,
+    users: viewUsers,
+    userDetail: ()=>viewUserDetail(r.params.id),
+    settings: viewSettings,
+    search: viewSearch,
+    guideFeed: viewGuideFeed,
+  };
+  el.innerHTML = (map[r.name]||viewHome)();
+  bindViewEvents();
+}
+
+/* ============ HOME ============ */
+function viewHome(){
+  const entry = state.guide.entries[Math.floor(Math.random()*state.guide.entries.length)];
+  const todays = state.tasks.filter(t=>t.date===todayStr());
+  const filtered = filterTasksByTab(todays).slice().sort(doneSort);
+  const done = filtered.filter(t=>t.done).length;
+  const pct = filtered.length? Math.round(done/filtered.length*100) : 0;
+  const plannedMin = filtered.filter(t=>!t.done).reduce((s,t)=>s+t.planned,0);
+  const hideAssignee = state.projectTab==='mine';
+
+  return `
+    <div class="note-card">
+      <div class="tape"></div>
+      <p>«${entry.text}»</p>
+      ${entry.type==='quote' && (entry.author||entry.work) ? `<div class="note-attrib">— ${[entry.author, entry.work].filter(Boolean).join(', ')}</div>` : ''}
+    </div>
+
+    <div class="pill-tabs">
+      ${tabBtn('mine','Мои')}${tabBtn('shared','Общие')}${tabBtn('all','Все')}
+    </div>
+    <div class="card" style="padding:4px 12px;">
+      ${filtered.length? filtered.map(t=>taskRow(t,{hideAssignee})).join('') : emptyBlock('✅','На сегодня всё сделано','Отличная работа!')}
+    </div>
+
+    <div class="summary-grid" style="margin-top:16px;">
+      <div class="summary-card">
+        <div class="big">${pct}%</div>
+        <div class="lbl">Выполнено сегодня${state.projectTab!=='all'?` · ${state.projectTab==='mine'?'мои':'общие'}`:''}</div>
+        <div class="progress-bar"><div style="width:${pct}%"></div></div>
+      </div>
+      <div class="summary-card">
+        <div class="big">${fmtMinutes(plannedMin)}</div>
+        <div class="lbl">Запланировано времени</div>
+      </div>
+    </div>
+
+    ${mergedIngredientsCard(todayStr())}
+  `;
+}
+function tabBtn(key,label){
+  return `<button class="${state.projectTab===key?'active':''}" data-tab="${key}">${label}</button>`;
+}
+function filterTasksByTab(list){
+  if(state.projectTab==='all') return list;
+  return list.filter(t=>{
+    const p = projectById(t.projectId);
+    const type = p? p.type : 'personal';
+    if(state.projectTab==='mine') return type!=='shared' || t.assignee===state.currentUserId;
+    if(state.projectTab==='shared') return type==='shared';
+    return true;
+  });
+}
+function emptyBlock(ic,title,sub){
+  return `<div class="empty"><div class="ic">${ic}</div><p><b>${title}</b></p><p>${sub}</p></div>`;
+}
+
+function taskRow(t, opts={}){
+  const hideAssignee = !!opts.hideAssignee;
+  const p = projectById(t.projectId);
+  const u = userById(t.assignee);
+  const hasChecklist = t.checklist.length>0;
+  const doneCount = t.checklist.filter(c=>c.done).length;
+  const expanded = expandedTasks.has(t.id);
+  const hasComments = t.comments.length>0;
+  const sortedChecklist = t.checklist.slice().sort(doneSort);
+
+  return `
+    <div class="task-block">
+      <div class="task-row ${t.done?'done':''}" data-task="${t.id}">
+        <button class="check ${t.done?'done':''}" data-toggle-task="${t.id}">${t.done?'✓':''}</button>
+        <div class="task-main">
+          <div class="task-title">${t.title}</div>
+          <div class="task-meta">
+            ${p?`<span class="chip">${p.icon} ${p.name}</span>`:`<span class="chip">🗂️ Без проекта</span>`}
+            ${t.date!==todayStr()?`<span>· ${fmtDateHuman(t.date)}</span>`:''}
+            ${hasComments?`<span class="meta-ic" title="Есть обсуждение">💬 ${t.comments.length}</span>`:''}
+            ${t.recurringGroup?`<span class="meta-ic" title="Регулярная задача">🔁 ${freqLabel(t.recurringFreq, t.recurringInterval)}</span>`:''}
+          </div>
+        </div>
+        <div class="task-side">
+          <span class="time-lbl">${fmtMinutes(t.planned)}</span>
+          ${!hideAssignee?`<span class="hashtag" style="color:${u.text}">#${u.name}</span>`:''}
+          ${hasChecklist?`<button class="chevron-btn ${expanded?'open':''}" data-expand-task="${t.id}" title="Показать чек-лист">☑ ${doneCount}/${t.checklist.length}<span class="arrow">▾</span></button>`:''}
+        </div>
+      </div>
+      ${hasChecklist && expanded? `
+        <div class="inline-checklist">
+          ${sortedChecklist.map(c=>`
+            <div class="checklist-row">
+              <button class="check ${c.done?'done':''}" data-inline-ck="${t.id}:${c.id}" style="width:19px;height:19px;font-size:10px;">${c.done?'✓':''}</button>
+              <span class="txt" style="${c.done?'text-decoration:line-through;color:var(--text-faint);':''} font-size:13px;">${c.text}</span>
+              ${c.amount!=null?`<span style="margin-left:auto; font-size:11.5px; color:var(--text-soft);">${c.amount} ${c.unit||''}</span>`:''}
+            </div>
+          `).join('')}
+        </div>
+      ` : ''}
+    </div>
+  `;
+}
+
+/* ============ PROJECTS ============ */
+function noProjectTasks(){ return state.tasks.filter(t=>!t.projectId); }
+
+function viewProjects(){
+  const virtual = { id:'none', name:'Без проекта', icon:'🗂️', type:'personal', accent:'clay', members:[], virtual:true };
+  const list = state.projects.filter(p=>{
+    if(state.projectTab==='mine') return p.type==='personal' || p.type==='template';
+    if(state.projectTab==='shared') return p.type==='shared' || p.type==='template';
+    return true;
+  });
+  const showVirtual = state.projectTab!=='shared';
+  return `
+    <div class="pill-tabs">
+      ${tabBtn('mine','Личные')}${tabBtn('shared','Общие')}${tabBtn('all','Все')}
+    </div>
+    <div class="proj-grid">
+      ${showVirtual? projectCard(virtual): ''}
+      ${list.map(projectCard).join('')}
+    </div>
+  `;
+}
+function projectCard(p){
+  const tasks = p.virtual? noProjectTasks() : state.tasks.filter(t=>t.projectId===p.id);
+  const done = tasks.filter(t=>t.done).length;
+  const pct = tasks.length? Math.round(done/tasks.length*100):0;
+  return `
+    <button class="proj-card" data-open-project="${p.id}">
+      <div class="proj-icon" style="background:${accentSoft(p.accent)}">${p.icon}</div>
+      <div>
+        <div class="proj-name">${p.name} ${p.type==='template'?'<span class="template-badge">Шаблон</span>':''}</div>
+        <div class="proj-sub">${p.type==='template'? `${state.templateFolders[p.id]?.length||0} папки` : `${tasks.length} задач · ${pct}%`}</div>
+      </div>
+      ${p.type!=='template'?`<div class="progress-bar"><div style="width:${pct}%; background:${accentVar(p.accent)}"></div></div>`:''}
+      <div class="proj-foot">
+        <div class="avatar-stack">
+          ${p.members.map(m=>{const u=userById(m); return `<span class="avatar" style="background:${u.color}">${u.emoji}</span>`}).join('')}
+        </div>
+        <span style="font-size:11px;color:var(--text-faint);">${p.virtual?'без проекта':p.type==='personal'?'личный':p.type==='template'?'шаблон':'общий'}</span>
+      </div>
+    </button>
+  `;
+}
+
+function viewNoProjectDetail(){
+  const allTasks = noProjectTasks();
+  const todayTasks = allTasks.filter(t=>t.date===todayStr()).sort(doneSort);
+  const upcomingTasks = allTasks.filter(t=>t.date>todayStr()).sort((a,b)=>doneSort(a,b) || a.date.localeCompare(b.date));
+  const doneToday = todayTasks.filter(t=>t.done).length;
+  const pct = todayTasks.length? Math.round(doneToday/todayTasks.length*100):0;
+  return `
+    <div class="view-header">
+      <button class="back-btn" data-nav-to="projects">←</button>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div class="proj-icon" style="background:var(--clay-soft)">🗂️</div>
+        <div>
+          <h2 style="font-family:'Unbounded';">Без проекта</h2>
+          <div class="proj-sub">${pct}% выполнено сегодня</div>
+        </div>
+      </div>
+    </div>
+    <div class="card" style="padding:4px 12px;">
+      ${todayTasks.length? todayTasks.map(t=>taskRow(t)).join('') : emptyBlock('📭','На сегодня нет задач','Нажмите + чтобы добавить')}
+    </div>
+    <button class="btn secondary block" data-add-task-to="none" style="margin-top:4px;">+ Добавить задачу</button>
+    ${upcomingTasks.length? `
+      <div class="section-title" data-toggle-upcoming="1" style="cursor:pointer;">
+        Предстоящие · ${upcomingTasks.length}
+        <span class="more">${upcomingOpen?'Свернуть ▴':'Показать ▾'}</span>
+      </div>
+      ${upcomingOpen? `<div class="card" style="padding:4px 12px;">${upcomingTasks.map(t=>taskRow(t)).join('')}</div>` : ''}
+    ` : ''}
+  `;
+}
+
+function mergedIngredientsCard(dateStr){
+  const relevant = state.tasks.filter(t=>t.date===dateStr && t.fromTemplate);
+  const map = new Map();
+  relevant.forEach(t=>t.checklist.forEach(c=>{
+    if(c.amount==null) return;
+    const key = c.text+'|'+(c.unit||'');
+    if(!map.has(key)) map.set(key, {name:c.text, unit:c.unit, amount:0, done:true});
+    const entry = map.get(key);
+    entry.amount += c.amount;
+    if(!c.done) entry.done = false;
+  }));
+  const recipeItems = [...map.values()];
+  const manualItems = state.shoppingItems.filter(s=>s.date===dateStr);
+  const allItems = [...recipeItems, ...manualItems];
+  const assignee = userById(getMergedAssignee(dateStr));
+
+  return `
+    <div class="card" style="background:var(--gold-soft); border-color:#E8D6A0; margin-top:14px;">
+      <div class="folder-title" style="color:#8a6b16;">🧾 Список продуктов${relevant.length?` · ${relevant.length} рецепта`:` (заметки)`}</div>
+      ${allItems.length? allItems.map(i=>`
+        <div class="checklist-row">
+          <button class="check ${i.done?'done':''}" data-shopping-check="${i.manual?`manual::${i.id}`:`recipe::${dateStr}::${encodeURIComponent(i.name)}::${encodeURIComponent(i.unit||'')}`}" style="width:19px;height:19px;font-size:10px;">${i.done?'✓':''}</button>
+          <span class="txt" style="${i.done?'text-decoration:line-through;color:var(--text-faint);':''} font-size:13.5px;">${i.name}</span>
+          ${i.amount!=null?`<span style="margin-left:auto; font-weight:700; font-size:12.5px;">${i.amount} ${i.unit||''}</span>`:''}
+          ${i.manual?`<button class="btn ghost sm" data-rm-shopping="${i.id}" type="button">×</button>`:''}
+        </div>
+      `).join('') : `<div class="proj-sub" style="color:#8a6b16; margin:6px 0;">Пока продуктов нет. Добавьте из рецептов или вручную.</div>`}
+
+      ${allItems.length? `
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-top:10px; flex-wrap:wrap; gap:8px;">
+        <span class="proj-sub">Ответственный за покупку</span>
+        <div class="chip-select">
+          ${state.users.map(u=>`<button data-v="${u.id}" data-merged-assignee-date="${dateStr}" class="${u.id===assignee.id?'active':''}">${u.emoji} ${u.name}</button>`).join('')}
+        </div>
+      </div>` : ''}
+
+      <div style="display:flex; gap:6px; margin-top:10px;">
+        <input type="text" id="shoppingInput" class="mini-input" placeholder="Продукт" style="flex:1;">
+        <input type="number" id="shoppingAmount" class="mini-input" placeholder="Кол-во" style="width:60px; flex:none;">
+        <input type="text" id="shoppingUnit" class="mini-input" placeholder="Ед." style="width:48px; flex:none;">
+        <button class="btn sm" id="shoppingAddBtn" type="button" style="flex:none;">+</button>
+      </div>
+    </div>
+  `;
+}
+
+function viewProjectDetail(id){
+  if(id==='none') return viewNoProjectDetail();
+  const p = projectById(id);
+  if(!p) return emptyBlock('🤔','Проект не найден','');
+  if(p.type==='template') return viewTemplateProjectDetail(p);
+
+  const tab = state.route.params.tab || 'tasks';
+  const allTasks = state.tasks.filter(t=>t.projectId===p.id);
+  const todayTasks = allTasks.filter(t=>t.date===todayStr()).sort(doneSort);
+  const upcomingTasks = allTasks.filter(t=>t.date>todayStr()).sort((a,b)=>doneSort(a,b) || a.date.localeCompare(b.date));
+  const doneToday = todayTasks.filter(t=>t.done).length;
+  const pct = todayTasks.length? Math.round(doneToday/todayTasks.length*100):0;
+
+  return `
+    <div class="view-header">
+      <button class="back-btn" data-nav-to="projects">←</button>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div class="proj-icon" style="background:${accentSoft(p.accent)}">${p.icon}</div>
+        <div>
+          <h2 style="font-family:'Unbounded';">${p.name}</h2>
+          <div class="proj-sub">${p.type==='shared'?'Общий проект':'Личный проект'} · ${pct}% выполнено сегодня</div>
+        </div>
+      </div>
+    </div>
+
+    ${p.type==='shared'?`
+      <div class="card" style="display:flex; align-items:center; justify-content:space-between;">
+        <div class="avatar-stack">${p.members.map(m=>{const u=userById(m);return `<span class="avatar" style="background:${u.color}">${u.emoji}</span>`}).join('')}</div>
+        <button class="btn secondary sm" data-invite="${p.id}">+ Пригласить</button>
+      </div>`:''}
+
+    <div class="tabbar-inline">
+      <button class="${tab==='tasks'?'active':''}" data-proj-tab="tasks">Задачи</button>
+      <button class="${tab==='files'?'active':''}" data-proj-tab="files">Файлы</button>
+    </div>
+
+    ${tab==='tasks'? `
+      <div class="card" style="padding:4px 12px;">
+        ${todayTasks.length? todayTasks.map(t=>taskRow(t)).join('') : emptyBlock('📭','На сегодня нет задач','Нажмите + чтобы добавить')}
+      </div>
+      <button class="btn secondary block" data-add-task-to="${p.id}" style="margin-top:4px;">+ Добавить задачу</button>
+
+      ${upcomingTasks.length? `
+        <div class="section-title" data-toggle-upcoming="1" style="cursor:pointer;">
+          Предстоящие · ${upcomingTasks.length}
+          <span class="more">${upcomingOpen?'Свернуть ▴':'Показать ▾'}</span>
+        </div>
+        ${upcomingOpen? `<div class="card" style="padding:4px 12px;">${upcomingTasks.map(t=>taskRow(t)).join('')}</div>` : ''}
+      ` : ''}
+    ` : `
+      <div class="card">
+        <div class="folder-title">Папки</div>
+        <div class="menu-list">
+          <button>📁 Документы</button>
+          <button>📁 Фото</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="folder-title">Файлы и заметки</div>
+        ${emptyBlock('🗂️','Файлов пока нет','Загрузите документы, фото или заметки')}
+      </div>
+    `}
+  `;
+}
+
+function viewTemplateProjectDetail(p){
+  const folders = state.templateFolders[p.id] || [];
+  const target = projectById(p.targetProjectId);
+  return `
+    <div class="view-header">
+      <button class="back-btn" data-nav-to="projects">←</button>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div class="proj-icon" style="background:${accentSoft(p.accent)}">${p.icon}</div>
+        <div>
+          <h2 style="font-family:'Unbounded';">${p.name}</h2>
+          <div class="proj-sub">Проект-шаблон · многоразовые заготовки</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="folder-title">Куда попадают новые задачи</div>
+      <div class="chip-select" id="targetProjectSelect">
+        ${state.projects.filter(pr=>pr.type!=='template').map(pr=>`<button data-v="${pr.id}" class="${pr.id===p.targetProjectId?'active':''}">${pr.icon} ${pr.name}</button>`).join('')}
+      </div>
+      <div class="proj-sub" style="margin-top:8px;">По умолчанию задачи из «${p.name}» будут предложены в проект «${target?target.name:'—'}». При создании его всегда можно поменять вручную.</div>
+    </div>
+
+    ${folders.map(f=>`
+      <div class="folder-block">
+        <div class="folder-title">📁 ${f.name}</div>
+        ${f.templates.map(t=>`
+          <div class="tmpl-card">
+            <button data-open-template="${t.id}" style="display:flex; align-items:center; gap:12px; flex:1; text-align:left; border:none; background:none; padding:0;">
+              <span class="tag">📋</span>
+              <div style="flex:1;">
+                <div class="name">${t.name}</div>
+                <div class="desc">${t.ingredients.length} ингредиентов${t.instructions?' · есть рецепт':''}${t.attachments&&t.attachments.length?' · '+t.attachments.length+' вложений':''}</div>
+              </div>
+            </button>
+            <button class="btn sm" data-use-template="${t.id}">Создать задачу</button>
+          </div>
+        `).join('')}
+      </div>
+    `).join('')}
+    <button class="btn secondary block" data-new-template="${p.id}">+ Новый шаблон</button>
+  `;
+}
+
+/* ============ CALENDAR ============ */
+function viewCalendar(){
+  const sel = new Date(state.calendarSelected);
+  const year = sel.getFullYear(), month = sel.getMonth();
+  const first = new Date(year, month, 1);
+  const startOffset = (first.getDay()+6)%7; // Monday-first
+  const daysInMonth = new Date(year, month+1, 0).getDate();
+  const monthLabel = first.toLocaleDateString('ru-RU',{month:'long', year:'numeric'});
+
+  let cells = '';
+  const dows = ['Пн','Вт','Ср','Чт','Пт','Сб','Вс'];
+  dows.forEach(d=> cells += `<div class="cal-dow">${d}</div>`);
+  for(let i=0;i<startOffset;i++) cells += `<div></div>`;
+  for(let d=1; d<=daysInMonth; d++){
+    const key = dateKey(new Date(year,month,d));
+    const dayTasks = state.tasks.filter(t=>t.date===key);
+    const isToday = key===todayStr();
+    const isSel = key===state.calendarSelected;
+    const dots = dayTasks.slice(0,3).map(t=>{
+      const p = projectById(t.projectId);
+      return `<span style="background:${p?accentVar(p.accent):'var(--text-faint)'}"></span>`;
+    }).join('');
+    cells += `<button class="cal-day ${isToday?'today':''} ${isSel?'selected':''}" data-select-day="${key}">
+      <span>${d}</span><span class="dots">${dots}</span>
+    </button>`;
+  }
+
+  const dayTasks = state.tasks.filter(t=>t.date===state.calendarSelected).sort(doneSort);
+  return `
+    <div class="card">
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
+        <button class="icon-btn" data-cal-shift="-1">‹</button>
+        <div style="font-family:'Unbounded'; font-weight:600; text-transform:capitalize;">${monthLabel}</div>
+        <button class="icon-btn" data-cal-shift="1">›</button>
+      </div>
+      <div class="cal-grid">${cells}</div>
+    </div>
+    <div class="section-title">${fmtDateHuman(state.calendarSelected)}</div>
+    <div class="card" style="padding:4px 12px;">
+      ${dayTasks.length? dayTasks.map(t=>taskRow(t)).join('') : emptyBlock('🌤️','Задач нет','Свободный день')}
+    </div>
+  `;
+}
+
+/* ============ USERS ============ */
+function viewUsers(){
+  return state.users.map(u=>{
+    const tasks = state.tasks.filter(t=>t.assignee===u.id && !t.done);
+    return `
+      <button class="user-card" data-open-user="${u.id}" style="width:100%; text-align:left; border:1px solid var(--line);">
+        <span class="avatar av" style="background:${u.color}">${u.emoji}</span>
+        <div style="flex:1;">
+          <div class="name">${u.name} ${u.id===state.currentUserId?'· это вы':''}</div>
+          <div class="sub">${tasks.length} активных задач</div>
+        </div>
+        <span style="color:var(--text-faint);">→</span>
+      </button>
+    `;
+  }).join('');
+}
+
+function viewUserDetail(id){
+  const u = userById(id);
+  const tasks = state.tasks.filter(t=>t.assignee===id).sort((a,b)=>doneSort(a,b) || a.date.localeCompare(b.date));
+  const done = tasks.filter(t=>t.done).length;
+  return `
+    <div class="view-header">
+      <button class="back-btn" data-nav-to="users">←</button>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <span class="avatar av" style="background:${u.color}">${u.emoji}</span>
+        <div>
+          <h2 style="font-family:'Unbounded';">${u.name}</h2>
+          <div class="proj-sub">${done} из ${tasks.length} задач выполнено</div>
+        </div>
+      </div>
+    </div>
+    <div class="card" style="padding:4px 12px;">
+      ${tasks.length? tasks.map(t=>taskRow(t,{hideAssignee:true})).join('') : emptyBlock('🙌','Нет задач','')}
+    </div>
+  `;
+}
+
+/* ============ SETTINGS ============ */
+function viewSettings(){
+  const u = userById(state.currentUserId);
+  return `
+    <div class="card" style="display:flex; align-items:center; gap:14px; cursor:pointer;" data-edit-profile>
+      <span class="avatar av" style="background:${u.color}">${u.emoji}</span>
+      <div style="flex:1;">
+        <div style="font-weight:700; font-size:15px;">${u.fullName||u.name}</div>
+        <div class="proj-sub">${u.email||'Почта не указана'}</div>
+      </div>
+      <span style="color:var(--text-faint);">✎</span>
+    </div>
+    <div class="section-title">Приложение</div>
+    <div class="card">
+      <div class="settings-row">
+        <div><div class="lbl">Тёмная тема</div><div class="sub">Переключайтесь в любое время</div></div>
+        <button class="switch theme-toggle${document.documentElement.getAttribute('data-theme')==='dark'?' on':''}" data-toggle-theme></button>
+      </div>
+      <div class="settings-row">
+        <div><div class="lbl">Язык</div><div class="sub">Русский</div></div>
+        <span style="color:var(--text-faint);">→</span>
+      </div>
+      <div class="settings-row" data-nav-to="guideFeed" style="cursor:pointer;">
+        <div><div class="lbl">«${state.guide.title}»</div><div class="sub">${state.guide.entries.length} записей · открыть коллекцию</div></div>
+        <span style="color:var(--text-faint);">→</span>
+      </div>
+      <div class="settings-row" data-rename-guide="1" style="cursor:pointer;">
+        <div><div class="lbl">Название коллекции</div><div class="sub">${state.guide.title}</div></div>
+        <span style="color:var(--text-faint);">✎</span>
+      </div>
+    </div>
+    <div class="section-title">Помощь</div>
+    <div class="card">
+      <div class="settings-row" data-open-guide="1" style="cursor:pointer;">
+        <div><div class="lbl">Руководство пользователя</div><div class="sub">Как устроены проекты, задачи и шаблоны</div></div>
+        <span style="color:var(--text-faint);">→</span>
+      </div>
+    </div>
+    <div class="section-title">О проекте</div>
+    <div class="card">
+      <div style="font-size:13.5px; line-height:1.55;">
+        <div style="margin-bottom:12px;"><b>Миссия.</b> Упростить бытовую жизнь, убрав хаос из повседневных домашних дел.</div>
+        <div><b>Цель.</b> Создать единое пространство, где можно хранить информацию, планировать задачи и удобно распределять обязанности между членами семьи.</div>
+      </div>
+    </div>
+
+    <div class="proj-sub" style="text-align:center; margin-top:18px;">Планировщик жизни · прототип v1</div>
+  `;
+}
+
+/* ============ GUIDE / НАПУТСТВИЕ ДНЯ (полная страница) ============ */
+function viewGuideFeed(){
+  const entries = state.guide.entries.slice().reverse();
+  return `
+    <div class="view-header">
+      <button class="back-btn" data-nav-to="home">←</button>
+      <div>
+        <h2 style="font-family:'Unbounded';">${state.guide.title}</h2>
+        <div class="proj-sub">${state.guide.entries.length} записей</div>
+      </div>
+    </div>
+    <div style="display:flex; flex-direction:column; gap:10px;">
+      ${entries.map(e=>`
+        <div class="card" style="margin-bottom:0;">
+          <p style="font-family:'Unbounded'; font-size:14px; font-weight:500; margin:0 0 6px; line-height:1.5;">«${e.text}»</p>
+          ${e.type==='quote' && (e.author||e.work)? `<div class="proj-sub" style="font-style:italic;">— ${[e.author,e.work].filter(Boolean).join(', ')}</div>`:''}
+          <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:6px;">
+            <button class="btn ghost sm" data-edit-guide="${e.id}">Редактировать</button>
+            <button class="btn ghost sm" data-delete-guide="${e.id}">Удалить</button>
+          </div>
+        </div>
+      `).join('')}
+    </div>
+    <button class="btn block" id="guideAddBtn" style="margin-top:14px;">+ Добавить запись</button>
+  `;
+}
+
+/* ============ SEARCH ============ */
+function viewSearch(){
+  const q = state.route.params.q || '';
+  const results = q.trim()? state.tasks.filter(t=>t.title.toLowerCase().includes(q.toLowerCase())).sort(doneSort) : [];
+  return `
+    <div class="search-input-wrap">
+      <span>🔍</span>
+      <input type="text" placeholder="Поиск задач и проектов" value="${q}" id="searchInput" autofocus>
+    </div>
+    ${q.trim()? `
+      <div class="card" style="padding:4px 12px;">
+        ${results.length? results.map(t=>taskRow(t)).join('') : emptyBlock('🔍','Ничего не найдено','Попробуйте другой запрос')}
+      </div>
+    ` : emptyBlock('🔎','Начните вводить запрос','Поиск по задачам и проектам')}
+  `;
+}
+
+/* ============ EVENT BINDING ============ */
+function bindViewEvents(){
+  document.querySelectorAll('[data-nav-to]').forEach(b=>b.onclick=()=>navigate(b.dataset.navTo));
+  document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>{ state.projectTab=b.dataset.tab; render(); });
+  document.querySelectorAll('[data-open-project]').forEach(b=>b.onclick=()=>navigate('projectDetail',{id:b.dataset.openProject}));
+  document.querySelectorAll('[data-open-user]').forEach(b=>b.onclick=()=>navigate('userDetail',{id:b.dataset.openUser}));
+  document.querySelectorAll('[data-proj-tab]').forEach(b=>b.onclick=()=>navigate('projectDetail',{id:state.route.params.id, tab:b.dataset.projTab}));
+  document.querySelectorAll('[data-toggle-task]').forEach(b=>b.onclick=(e)=>{ e.stopPropagation(); toggleTask(b.dataset.toggleTask); });
+  document.querySelectorAll('[data-task]').forEach(b=>b.onclick=()=>openTaskDetail(b.dataset.task));
+  document.querySelectorAll('[data-expand-task]').forEach(b=>b.onclick=(e)=>{
+    e.stopPropagation();
+    const id = b.dataset.expandTask;
+    if(expandedTasks.has(id)) expandedTasks.delete(id); else expandedTasks.add(id);
+    render();
+  });
+  document.querySelectorAll('[data-inline-ck]').forEach(b=>b.onclick=(e)=>{
+    e.stopPropagation();
+    const [taskId, ckId] = b.dataset.inlineCk.split(':');
+    const t = state.tasks.find(x=>x.id===taskId);
+    const item = t.checklist.find(c=>c.id===ckId);
+    item.done = !item.done;
+    syncTaskDoneFromChecklist(t);
+    render();
+  });
+  document.querySelectorAll('[data-toggle-upcoming]').forEach(b=>b.onclick=()=>{ upcomingOpen = !upcomingOpen; render(); });
+  document.querySelectorAll('[data-select-day]').forEach(b=>b.onclick=()=>{ state.calendarSelected=b.dataset.selectDay; render(); });
+  document.querySelectorAll('[data-cal-shift]').forEach(b=>b.onclick=()=>{
+    const d = new Date(state.calendarSelected); d.setMonth(d.getMonth()+Number(b.dataset.calShift)); d.setDate(1);
+    state.calendarSelected = dateKey(d); render();
+  });
+  document.querySelectorAll('[data-add-task-to]').forEach(b=>b.onclick=()=>openCreateTask(b.dataset.addTaskTo));
+  document.querySelectorAll('[data-use-template]').forEach(b=>b.onclick=()=>openUseTemplate(b.dataset.useTemplate));
+  document.querySelectorAll('[data-open-template]').forEach(b=>b.onclick=()=>openTemplateDetail(b.dataset.openTemplate));
+  document.querySelectorAll('[data-new-template]').forEach(b=>b.onclick=()=>openCreateTemplateInProject(b.dataset.newTemplate));
+  document.querySelectorAll('[data-invite]').forEach(b=>b.onclick=()=>openInvite(b.dataset.invite));
+  document.querySelectorAll('[data-open-guide]').forEach(b=>b.onclick=openGuide);
+  document.querySelectorAll('[data-edit-profile]').forEach(b=>b.onclick=openEditProfile);
+  document.querySelectorAll('[data-rename-guide]').forEach(b=>b.onclick=openRenameGuide);
+  document.querySelectorAll('[data-edit-guide]').forEach(b=>b.onclick=()=>openEditGuideEntry(b.dataset.editGuide));
+  document.querySelectorAll('[data-delete-guide]').forEach(b=>b.onclick=()=>{
+    state.guide.entries = state.guide.entries.filter(e=>e.id!==b.dataset.deleteGuide);
+    render();
+    toast('Запись удалена');
+  });
+  document.querySelectorAll('[data-shopping-check]').forEach(b=>b.onclick=(e)=>{
+    e.stopPropagation();
+    const [kind, ...rest] = b.dataset.shoppingCheck.split('::');
+    if(kind==='manual'){
+      const item = state.shoppingItems.find(s=>s.id===rest[0]);
+      if(item){ item.done = !item.done; }
+    } else {
+      const [dateStr, nameEnc, unitEnc] = rest;
+      const name = decodeURIComponent(nameEnc), unit = decodeURIComponent(unitEnc);
+      const relevant = state.tasks.filter(t=>t.date===dateStr && t.fromTemplate);
+      const items = [];
+      relevant.forEach(t=>t.checklist.forEach(c=>{ if(c.text===name && (c.unit||'')===unit) items.push({t,c}); }));
+      const allDone = items.every(x=>x.c.done);
+      items.forEach(x=>{ x.c.done = !allDone; });
+      items.forEach(x=>syncTaskDoneFromChecklist(x.t));
+    }
+    render();
+  });
+  document.querySelectorAll('[data-rm-shopping]').forEach(b=>b.onclick=(e)=>{
+    e.stopPropagation();
+    state.shoppingItems = state.shoppingItems.filter(s=>s.id!==b.dataset.rmShopping);
+    render();
+  });
+  const shoppingAddBtn = document.getElementById('shoppingAddBtn');
+  if(shoppingAddBtn) shoppingAddBtn.onclick = ()=>{
+    const name = document.getElementById('shoppingInput')?.value.trim();
+    if(!name) return;
+    const amount = Number(document.getElementById('shoppingAmount')?.value)||0;
+    const unit = document.getElementById('shoppingUnit')?.value.trim()||'';
+    state.shoppingItems.push({ id:uid('shop'), name, amount, unit, done:false, date:todayStr(), manual:true });
+    render();
+  };
+  document.querySelectorAll('[data-merged-assignee-date]').forEach(b=>b.onclick=()=>{
+    state.mergedAssignees[b.dataset.mergedAssigneeDate] = b.dataset.v;
+    render();
+  });
+  const guideAddBtn = document.getElementById('guideAddBtn');
+  if(guideAddBtn) guideAddBtn.onclick = openCreateGuideEntry;
+  document.querySelectorAll('[data-toggle-theme]').forEach(b=>b.onclick=toggleTheme);
+  document.querySelectorAll('#targetProjectSelect button').forEach(b=>b.onclick=()=>{
+    const p = projectById(state.route.params.id);
+    p.targetProjectId = b.dataset.v;
+    render();
+    toast('Проект назначения обновлён');
+  });
+  const si = document.getElementById('searchInput');
+  if(si) si.oninput = ()=> navigate('search',{q:si.value});
+}
+
+function toggleTask(id){
+  const t = state.tasks.find(t=>t.id===id);
+  t.done = !t.done;
+  render();
+}
+
+/* ============ MODALS ============ */
+function openModal(html, onMount){
+  document.getElementById('modalRoot').innerHTML = `
+    <div class="overlay" id="overlay">
+      <div class="sheet" id="sheet">
+        <div class="sheet-handle"></div>
+        ${html}
+      </div>
+    </div>
+  `;
+  document.getElementById('overlay').addEventListener('click', (e)=>{ if(e.target.id==='overlay') closeModal(); });
+  if(onMount) onMount();
+}
+function closeModal(){ document.getElementById('modalRoot').innerHTML=''; render(); }
+
+function openCreateMenu(){
+  openModal(`
+    <div class="sheet-title">Создать</div>
+    <div class="menu-list" style="margin-top:14px;">
+      <button data-m="task"><span class="ic">✅</span>Задачу</button>
+      <button data-m="project"><span class="ic">📁</span>Проект</button>
+      <button data-m="template"><span class="ic">📋</span>Шаблон</button>
+      <button data-m="guide"><span class="ic">📖</span>${state.guide.title}</button>
+    </div>
+  `, ()=>{
+    document.querySelectorAll('[data-m]').forEach(b=>b.onclick=()=>{
+      const m = b.dataset.m;
+      if(m==='task') openCreateTask();
+      else if(m==='project') openCreateProject();
+      else if(m==='template') openCreateTemplateFromMenu();
+      else if(m==='guide') { closeModal(); openCreateGuideEntry(); }
+    });
+  });
+}
+
+function openCreateTask(defaultProjectId){
+  const startProjectId = defaultProjectId || 'none';
+  const projectOptions = [{id:'none', icon:'🗂️', name:'Без проекта', type:'none'}, ...state.projects.filter(p=>p.type!=='template')];
+
+  openModal(`
+    <div class="sheet-title">Новая задача</div>
+    <div class="field" style="margin-top:14px;"><label>Название</label><input type="text" id="fTitle" placeholder="Например: Полить цветы"></div>
+    <div class="field"><label>Проект</label>
+      <div class="chip-select" id="fProject">
+        ${projectOptions.map(p=>`<button data-v="${p.id}" class="${p.id===startProjectId?'active':''}">${p.icon} ${p.name}</button>`).join('')}
+      </div>
+    </div>
+    <div class="field" id="fAssigneeField">
+      <label>Ответственный</label>
+      <div class="chip-select" id="fAssignee">
+        ${state.users.map(u=>`<button data-v="${u.id}" class="${u.id===state.currentUserId?'active':''}">${u.emoji} ${u.name}</button>`).join('')}
+      </div>
+    </div>
+    <div class="proj-sub" id="fAssigneeAuto" style="display:none; margin:-4px 0 14px;">Личный проект (или без проекта) · задача будет назначена на вас</div>
+    <div class="field"><label>Дата</label><input type="date" id="fDate" value="${todayStr()}"></div>
+    <div class="field"><label>Планируемое время (мин)</label><input type="number" id="fTime" value="20"></div>
+
+    <div class="field">
+      <label>Чек-лист (необязательно)</label>
+      <div id="fChecklist"></div>
+      <div style="display:flex; gap:8px; margin-top:6px;">
+        <input type="text" id="fChecklistInput" class="mini-input" placeholder="Пункт чек-листа">
+        <button class="btn sm" id="fChecklistAdd" type="button">+</button>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Вложение (необязательно)</label>
+      <div id="fAttachList"></div>
+      <div style="display:grid; grid-template-columns:1.2fr 1fr 0.7fr; gap:6px; margin-top:6px;">
+        <input type="text" id="fAttTitle" class="mini-input" placeholder="Название">
+        <input type="text" id="fAttUrl" class="mini-input" placeholder="Ссылка">
+        <input type="text" id="fAttPrice" class="mini-input" placeholder="Цена">
+      </div>
+      <button class="btn secondary sm" id="fAttAdd" type="button" style="margin-top:6px;">+ Добавить вложение</button>
+    </div>
+
+    <div class="settings-row" style="padding:12px 2px;">
+      <div><div class="lbl" style="font-size:13.5px;">Повторяющаяся задача</div><div class="sub">Например, раз в 2 дня или раз в 5 недель</div></div>
+      <button class="switch" id="fRepeatSwitch" type="button"></button>
+    </div>
+    <div class="field" id="fFreqField" style="display:none;">
+      <label>Повторять каждые</label>
+      <div style="display:flex; gap:8px; align-items:center;">
+        <input type="number" id="fFreqInterval" class="mini-input" value="1" min="1" style="width:64px; flex:none;">
+        <div class="chip-select" id="fFreq" style="flex:1;">
+          <button data-v="daily" class="active">дней</button>
+          <button data-v="weekly">недель</button>
+          <button data-v="monthly">месяцев</button>
+        </div>
+      </div>
+    </div>
+
+    <button class="btn block" id="fSave" style="margin-top:6px;">Создать задачу</button>
+  `, ()=>{
+    let chosenProject = startProjectId;
+    let chosenAssignee = state.currentUserId;
+    let builtChecklist = [];
+    let builtAttachments = [];
+    let repeatOn = false;
+    let chosenFreq = 'daily';
+
+    const syncAssigneeVisibility = ()=>{
+      const proj = chosenProject==='none'? null : projectById(chosenProject);
+      const isPersonal = !proj || proj.type==='personal';
+      document.getElementById('fAssigneeField').style.display = isPersonal? 'none':'block';
+      document.getElementById('fAssigneeAuto').style.display = isPersonal? 'block':'none';
+      if(isPersonal) chosenAssignee = state.currentUserId;
+    };
+    document.querySelectorAll('#fProject button').forEach(b=>b.onclick=()=>{
+      chosenProject=b.dataset.v;
+      document.querySelectorAll('#fProject button').forEach(x=>x.classList.remove('active'));
+      b.classList.add('active');
+      syncAssigneeVisibility();
+    });
+    document.querySelectorAll('#fAssignee button').forEach(b=>b.onclick=()=>{ chosenAssignee=b.dataset.v; document.querySelectorAll('#fAssignee button').forEach(x=>x.classList.remove('active')); b.classList.add('active'); });
+    syncAssigneeVisibility();
+
+    const renderBuiltChecklist = ()=>{
+      document.getElementById('fChecklist').innerHTML = builtChecklist.map((c,i)=>`
+        <div class="checklist-row"><span class="txt" style="font-size:13px;">${c}</span><button class="btn ghost sm" data-rm-ck="${i}" type="button">×</button></div>
+      `).join('');
+      document.querySelectorAll('[data-rm-ck]').forEach(b=>b.onclick=()=>{ builtChecklist.splice(Number(b.dataset.rmCk),1); renderBuiltChecklist(); });
+    };
+    const addChecklistFromInput = ()=>{
+      const inp = document.getElementById('fChecklistInput');
+      const v = inp.value.trim();
+      if(!v) return;
+      builtChecklist.push(v);
+      inp.value='';
+      renderBuiltChecklist();
+    };
+    document.getElementById('fChecklistAdd').onclick = addChecklistFromInput;
+    document.getElementById('fChecklistInput').onkeydown = (e)=>{ if(e.key==='Enter'){ e.preventDefault(); addChecklistFromInput(); } };
+
+    const renderBuiltAttachments = ()=>{
+      document.getElementById('fAttachList').innerHTML = builtAttachments.map((a,i)=>`
+        <div class="attach-row"><div><div class="t">${a.title}</div>${a.url?`<a href="#">${a.url}</a>`:''}</div>
+          <div style="display:flex; align-items:center; gap:8px;">${a.price?`<div class="p">${a.price}</div>`:''}<button class="btn ghost sm" data-rm-att="${i}" type="button">×</button></div>
+        </div>
+      `).join('');
+      document.querySelectorAll('[data-rm-att]').forEach(b=>b.onclick=()=>{ builtAttachments.splice(Number(b.dataset.rmAtt),1); renderBuiltAttachments(); });
+    };
+    const addAttachmentFromInputs = ({silent}={})=>{
+      const title = document.getElementById('fAttTitle').value.trim();
+      if(!title){ if(!silent) toast('Введите название вложения'); return false; }
+      builtAttachments.push({ title, url: document.getElementById('fAttUrl').value.trim(), price: document.getElementById('fAttPrice').value.trim() });
+      document.getElementById('fAttTitle').value=''; document.getElementById('fAttUrl').value=''; document.getElementById('fAttPrice').value='';
+      renderBuiltAttachments();
+      return true;
+    };
+    document.getElementById('fAttAdd').onclick = ()=>addAttachmentFromInputs();
+    document.getElementById('fAttTitle').onkeydown = (e)=>{ if(e.key==='Enter'){ e.preventDefault(); addAttachmentFromInputs(); } };
+
+    document.getElementById('fRepeatSwitch').onclick = ()=>{
+      repeatOn = !repeatOn;
+      document.getElementById('fRepeatSwitch').classList.toggle('on', repeatOn);
+      document.getElementById('fFreqField').style.display = repeatOn? 'block':'none';
+    };
+    document.querySelectorAll('#fFreq button').forEach(b=>b.onclick=()=>{ chosenFreq=b.dataset.v; document.querySelectorAll('#fFreq button').forEach(x=>x.classList.remove('active')); b.classList.add('active'); });
+
+    document.getElementById('fSave').onclick = ()=>{
+      const title = document.getElementById('fTitle').value.trim();
+      if(!title){ toast('Введите название задачи'); return; }
+      // safety net: if the person typed something but forgot to press "+", include it anyway
+      addChecklistFromInput();
+      addAttachmentFromInputs({silent:true});
+      const baseChecklist = builtChecklist.map(text=>({id:uid('c'), text, done:false}));
+      const baseDate = document.getElementById('fDate').value || todayStr();
+      const interval = Math.max(1, Number(document.getElementById('fFreqInterval').value)||1);
+      const newTask = {
+        id: uid('t'), projectId: chosenProject==='none'? null : chosenProject, title, done:false,
+        date: baseDate, planned: Number(document.getElementById('fTime').value)||15,
+        assignee: chosenAssignee, checklist: baseChecklist, comments:[], attachments: builtAttachments.slice()
+      };
+      if(repeatOn){
+        const groupId = uid('rec');
+        newTask.recurringGroup = groupId; newTask.recurringFreq = chosenFreq; newTask.recurringInterval = interval;
+        state.tasks.push(newTask);
+        nextDatesForFreq(baseDate, chosenFreq, interval, 2).forEach(d=>{
+          state.tasks.push({...newTask, id:uid('t'), date:d, done:false,
+            checklist: baseChecklist.map(c=>({...c, id:uid('c'), done:false})),
+            attachments: builtAttachments.slice(), comments:[]});
+        });
+      } else {
+        state.tasks.push(newTask);
+      }
+      closeModal();
+      toast(repeatOn? 'Регулярная задача создана' : 'Задача создана');
+    };
+  });
+}
+
+function openCreateProject(){
+  openModal(`
+    <div class="sheet-title">Новый проект</div>
+    <div class="field" style="margin-top:14px;"><label>Название</label><input type="text" id="pName" placeholder="Например: Дача"></div>
+    <div class="field"><label>Иконка</label>
+      <div class="chip-select" id="pIcon">
+        ${['📁','🏡','🚗','💪','🎓','🌱'].map((e,i)=>`<button data-v="${e}" class="${i===0?'active':''}">${e}</button>`).join('')}
+      </div>
+    </div>
+    <div class="field"><label>Тип</label>
+      <div class="chip-select" id="pType">
+        <button data-v="personal" class="active">Личный</button>
+        <button data-v="shared">Общий</button>
+      </div>
+    </div>
+    <button class="btn block" id="pSave">Создать проект</button>
+  `, ()=>{
+    let icon='📁', type='personal';
+    document.querySelectorAll('#pIcon button').forEach(b=>b.onclick=()=>{ icon=b.dataset.v; document.querySelectorAll('#pIcon button').forEach(x=>x.classList.remove('active')); b.classList.add('active'); });
+    document.querySelectorAll('#pType button').forEach(b=>b.onclick=()=>{ type=b.dataset.v; document.querySelectorAll('#pType button').forEach(x=>x.classList.remove('active')); b.classList.add('active'); });
+    document.getElementById('pSave').onclick = ()=>{
+      const name = document.getElementById('pName').value.trim();
+      if(!name){ toast('Введите название проекта'); return; }
+      const accents=['sage','blue','clay','gold'];
+      state.projects.push({ id: uid('p'), name, icon, type, accent: accents[state.projects.length%accents.length], members: type==='shared'? ['asya','stepa']:['asya'] });
+      closeModal();
+      toast('Проект создан');
+    };
+  });
+}
+
+function openCreateTemplateFromMenu(){
+  const templateProjects = state.projects.filter(p=>p.type==='template');
+  const nonTemplateProjects = state.projects.filter(p=>p.type!=='template');
+
+  openModal(`
+    <div class="sheet-title">Новый шаблон</div>
+    <div style="margin-top:14px;">
+      <div class="field"><label>Проект-шаблон</label>
+        <div class="chip-select" id="tmpMode">
+          <button data-v="existing" class="active">В существующий</button>
+          <button data-v="new">Создать новый</button>
+        </div>
+      </div>
+
+      <div id="tmpExistingBlock">
+        <div class="field"><label>Выберите проект-шаблон</label>
+          <div class="chip-select" id="tmpExistingSelect">
+            ${templateProjects.length? templateProjects.map((p,i)=>`<button data-v="${p.id}" class="${i===0?'active':''}">${p.icon} ${p.name}</button>`).join('') : `<div class="proj-sub" style="margin:8px 0;">Нет проектов-шаблонов. Создайте новый.</div>`}
+          </div>
+        </div>
+      </div>
+
+      <div id="tmpNewBlock" style="display:none;">
+        <div class="field"><label>Название проекта-шаблона</label><input type="text" id="tmpNewName" placeholder="Например: Рецепты"></div>
+        <div class="field"><label>Иконка</label>
+          <div class="chip-select" id="tmpNewIcon">
+            ${['📁','🍳','🎓','🏠','💪','🧹','🛒','📚'].map((e,i)=>`<button data-v="${e}" class="${i===0?'active':''}">${e}</button>`).join('')}
+          </div>
+        </div>
+        <div class="field"><label>Проект для новых задач</label>
+          <div class="chip-select" id="tmpNewTarget">
+            ${nonTemplateProjects.map((p,i)=>`<button data-v="${p.id}" class="${i===0?'active':''}">${p.icon} ${p.name}</button>`).join('')}
+          </div>
+        </div>
+      </div>
+    </div>
+    <button class="btn block" id="tmpNextBtn" style="margin-top:8px;">${templateProjects.length?'Создать шаблон':'Создать проект-шаблон'}</button>
+  `, ()=>{
+    let mode = 'existing';
+    let chosenExisting = templateProjects[0]?.id || null;
+    let newIcon = '📁';
+    let newTarget = nonTemplateProjects[0]?.id || null;
+
+    const syncMode = ()=>{
+      document.getElementById('tmpExistingBlock').style.display = mode==='existing'?'block':'none';
+      document.getElementById('tmpNewBlock').style.display = mode==='new'?'block':'none';
+      document.getElementById('tmpNextBtn').textContent = mode==='existing'?'Создать шаблон':'Создать проект-шаблон';
+    };
+
+    document.querySelectorAll('#tmpMode button').forEach(b=>b.onclick=()=>{
+      mode=b.dataset.v;
+      document.querySelectorAll('#tmpMode button').forEach(x=>x.classList.remove('active'));
+      b.classList.add('active');
+      syncMode();
+    });
+
+    document.querySelectorAll('#tmpExistingSelect button').forEach(b=>b.onclick=()=>{
+      chosenExisting=b.dataset.v;
+      document.querySelectorAll('#tmpExistingSelect button').forEach(x=>x.classList.remove('active'));
+      b.classList.add('active');
+    });
+
+    document.querySelectorAll('#tmpNewIcon button').forEach(b=>b.onclick=()=>{
+      newIcon=b.dataset.v;
+      document.querySelectorAll('#tmpNewIcon button').forEach(x=>x.classList.remove('active'));
+      b.classList.add('active');
+    });
+
+    document.querySelectorAll('#tmpNewTarget button').forEach(b=>b.onclick=()=>{
+      newTarget=b.dataset.v;
+      document.querySelectorAll('#tmpNewTarget button').forEach(x=>x.classList.remove('active'));
+      b.classList.add('active');
+    });
+
+    document.getElementById('tmpNextBtn').onclick = ()=>{
+      if(mode==='existing'){
+        if(!chosenExisting){ toast('Сначала создайте проект-шаблон'); return; }
+        closeModal();
+        openCreateTemplateInProject(chosenExisting);
+      } else {
+        const name = document.getElementById('tmpNewName').value.trim();
+        if(!name){ toast('Введите название проекта'); return; }
+        const pId = uid('p');
+        state.projects.push({
+          id:pId, name, icon:newIcon, type:'template', accent:'gold',
+          members: state.currentUserId==='asya'?['asya','stepa']:[state.currentUserId],
+          targetProjectId:newTarget
+        });
+        if(!state.templateFolders[pId]) state.templateFolders[pId] = [];
+        closeModal();
+        toast('Проект-шаблон создан');
+        openCreateTemplateInProject(pId);
+      }
+    };
+  });
+}
+
+function openCreateTemplateInProject(projectId){
+  const p = projectById(projectId);
+  const folders = state.templateFolders[projectId] || [];
+
+  openModal(`
+    <div class="sheet-title">Новый шаблон в «${p.name}»</div>
+    <div class="field" style="margin-top:14px;"><label>Название шаблона</label><input type="text" id="nTName" placeholder="Например: Овсянка с ягодами"></div>
+    <div class="field"><label>Папка</label>
+      <div class="chip-select" id="nTFolder">
+        ${folders.length? folders.map((f,i)=>`<button data-v="${i}" class="${i===0?'active':''}">📁 ${f.name}</button>`).join('') + `<button data-v="new">📁 Новая папка</button>` : `<button data-v="new" class="active">📁 Новая папка</button>`}
+      </div>
+      <div id="nTNewFolderWrap" style="${folders.length?'display:none;':''} margin-top:8px;">
+        <input type="text" id="nTNewFolder" class="mini-input" placeholder="Название новой папки">
+      </div>
+    </div>
+    <div class="field"><label>Инструкция (необязательно)</label><textarea id="nTInstructions" placeholder="Как готовить, что делать" style="min-height:70px;"></textarea></div>
+    <button class="btn block" id="nTSave" style="margin-top:8px;">Создать шаблон</button>
+  `, ()=>{
+    let folderIndex = 0;
+    let isNewFolder = !folders.length;
+
+    const syncFolder = ()=>{
+      document.getElementById('nTNewFolderWrap').style.display = isNewFolder?'block':'none';
+    };
+    syncFolder();
+
+    document.querySelectorAll('#nTFolder button').forEach(b=>b.onclick=()=>{
+      if(b.dataset.v==='new'){ isNewFolder=true; }
+      else { isNewFolder=false; folderIndex=Number(b.dataset.v); }
+      document.querySelectorAll('#nTFolder button').forEach(x=>x.classList.remove('active'));
+      b.classList.add('active');
+      syncFolder();
+    });
+
+    document.getElementById('nTSave').onclick = ()=>{
+      const name = document.getElementById('nTName').value.trim();
+      if(!name){ toast('Введите название шаблона'); return; }
+      const instructions = document.getElementById('nTInstructions').value.trim();
+      const newTemplate = { id:uid('tp'), name, instructions, attachments:[], ingredients:[] };
+
+      if(isNewFolder){
+        const folderName = document.getElementById('nTNewFolder').value.trim();
+        if(!folderName){ toast('Введите название папки'); return; }
+        if(!state.templateFolders[projectId]) state.templateFolders[projectId] = [];
+        state.templateFolders[projectId].push({ name:folderName, templates:[newTemplate] });
+      } else {
+        state.templateFolders[projectId][folderIndex].templates.push(newTemplate);
+      }
+      closeModal();
+      toast('Шаблон создан');
+    };
+  });
+}
+
+function findTemplate(templateId){
+  let tmpl, srcProject;
+  state.projects.forEach(pr=>{
+    const folders = state.templateFolders[pr.id];
+    if(folders) folders.forEach(f=>f.templates.forEach(t=>{ if(t.id===templateId){ tmpl=t; srcProject=pr; } }));
+  });
+  return { tmpl, srcProject };
+}
+
+function openTemplateDetail(templateId){
+  const { tmpl } = findTemplate(templateId);
+  if(!tmpl) return;
+  openModal(`
+    <div class="sheet-title">${tmpl.name}</div>
+
+    <div class="folder-title" style="margin-top:14px;">Ингредиенты</div>
+    <div id="tplIngredients">${renderTplIngredients(tmpl)}</div>
+    <div style="display:grid; grid-template-columns:1.3fr 0.7fr 0.7fr; gap:6px; margin-top:6px;">
+      <input type="text" id="tplIngName" class="mini-input" placeholder="Название">
+      <input type="number" id="tplIngAmount" class="mini-input" placeholder="Кол-во">
+      <input type="text" id="tplIngUnit" class="mini-input" placeholder="Ед. (г, мл...)">
+    </div>
+    <button class="btn secondary sm" id="tplIngAdd" type="button" style="margin-top:6px;">+ Добавить ингредиент</button>
+
+    <div class="folder-title" style="margin-top:18px;">Рецепт / инструкция</div>
+    <textarea id="tplInstructions" placeholder="Как готовить" style="min-height:90px;">${tmpl.instructions||''}</textarea>
+    <button class="btn secondary sm" id="tplInstrSave" type="button" style="margin-top:6px;">Сохранить рецепт</button>
+
+    <div class="folder-title" style="margin-top:18px;">Вложения — фото / видео</div>
+    <div id="tplAttachList">${renderTplAttachments(tmpl)}</div>
+    <button class="btn secondary sm" id="tplAttAdd" type="button" style="margin-top:6px;">+ Добавить фото / видео</button>
+
+    <button class="btn block" style="margin-top:20px;" id="tplUseBtn">Создать задачу из этого шаблона</button>
+  `, ()=>{
+    document.getElementById('tplIngAdd').onclick = ()=>{
+      const name = document.getElementById('tplIngName').value.trim();
+      const amount = Number(document.getElementById('tplIngAmount').value)||0;
+      const unit = document.getElementById('tplIngUnit').value.trim();
+      if(!name){ toast('Введите название ингредиента'); return; }
+      tmpl.ingredients.push({name, amount, unit});
+      document.getElementById('tplIngName').value=''; document.getElementById('tplIngAmount').value=''; document.getElementById('tplIngUnit').value='';
+      document.getElementById('tplIngredients').innerHTML = renderTplIngredients(tmpl);
+      bindTplIngredientRemove(tmpl);
+    };
+    bindTplIngredientRemove(tmpl);
+    document.getElementById('tplInstrSave').onclick = ()=>{
+      tmpl.instructions = document.getElementById('tplInstructions').value.trim();
+      toast('Рецепт сохранён');
+    };
+    if(!tmpl.attachments) tmpl.attachments = [];
+    const refreshAttach = ()=>{
+      document.getElementById('tplAttachList').innerHTML = renderTplAttachments(tmpl);
+      document.querySelectorAll('[data-tpl-rm-att]').forEach(b=>b.onclick=()=>{ tmpl.attachments.splice(Number(b.dataset.tplRmAtt),1); refreshAttach(); });
+    };
+    refreshAttach();
+    document.getElementById('tplAttAdd').onclick = ()=>{
+      const name = prompt('Название файла (например: Фото готового блюда.jpg)');
+      if(name && name.trim()){ tmpl.attachments.push({title:name.trim(), url:'вложение'}); refreshAttach(); }
+    };
+    document.getElementById('tplUseBtn').onclick = ()=>{ closeModal(); openUseTemplate(templateId); };
+  });
+}
+function renderTplIngredients(tmpl){
+  return tmpl.ingredients.map((ing,i)=>`
+    <div class="checklist-row">
+      <span class="txt" style="font-size:13.5px;">${ing.name}</span>
+      <span style="margin-left:auto; font-size:12px; color:var(--text-soft);">${ing.amount} ${ing.unit}</span>
+      <button class="btn ghost sm" data-tpl-rm-ing="${i}" type="button">×</button>
+    </div>
+  `).join('');
+}
+function bindTplIngredientRemove(tmpl){
+  document.querySelectorAll('[data-tpl-rm-ing]').forEach(b=>b.onclick=()=>{
+    tmpl.ingredients.splice(Number(b.dataset.tplRmIng),1);
+    document.getElementById('tplIngredients').innerHTML = renderTplIngredients(tmpl);
+    bindTplIngredientRemove(tmpl);
+  });
+}
+function renderTplAttachments(tmpl){
+  const list = tmpl.attachments||[];
+  return list.length? list.map((a,i)=>`
+    <div class="attach-row"><div class="t">${a.title}</div><button class="btn ghost sm" data-tpl-rm-att="${i}" type="button">Убрать</button></div>
+  `).join('') : `<div class="proj-sub" style="margin-bottom:6px;">Пока нет вложений</div>`;
+}
+
+function openUseTemplate(templateId){
+  const { tmpl, srcProject } = findTemplate(templateId);
+  if(!tmpl) return;
+  const defaultTarget = (srcProject && srcProject.targetProjectId) || state.projects.find(p=>p.type!=='template').id;
+
+  openModal(`
+    <div class="sheet-title">Создать задачу из шаблона</div>
+    <div class="proj-sub" style="margin:6px 0 14px;">${tmpl.name}</div>
+
+    <div class="field"><label>Проект назначения</label>
+      <div class="chip-select" id="uProject">
+        ${state.projects.filter(p=>p.type!=='template').map(p=>`<button data-v="${p.id}" class="${p.id===defaultTarget?'active':''}">${p.icon} ${p.name}</button>`).join('')}
+      </div>
+    </div>
+    <div class="field" id="uAssigneeField">
+      <label>Ответственный</label>
+      <div class="chip-select" id="uAssignee">
+        ${state.users.map(u=>`<button data-v="${u.id}" class="${u.id===state.currentUserId?'active':''}">${u.emoji} ${u.name}</button>`).join('')}
+      </div>
+    </div>
+    <div class="proj-sub" id="uAssigneeAuto" style="display:none; margin:-4px 0 14px;">Личный проект · задача будет назначена на вас</div>
+    <div class="field"><label>Дата</label><input type="date" id="uDate" value="${todayStr()}"></div>
+
+    <div class="field">
+      <label>Ингредиенты · отметьте то, что уже есть дома</label>
+      <div id="uIngredients">
+        ${tmpl.ingredients.map((ing,i)=>`
+          <div class="checklist-row">
+            <button class="check" data-uing="${i}" style="width:19px;height:19px;font-size:10px;"></button>
+            <span class="txt" style="font-size:13.5px;">${ing.name}</span>
+            <span style="margin-left:auto; font-size:12px; color:var(--text-soft);">${ing.amount} ${ing.unit}</span>
+          </div>
+        `).join('')}
+      </div>
+      <div class="proj-sub" style="margin-top:4px;">Отмеченные пункты попадут в задачу уже вычеркнутыми — покупать их не нужно.</div>
+    </div>
+
+    <div class="field"><label>Комментарий (необязательно)</label><textarea id="uComment" placeholder="Например: без лука"></textarea></div>
+
+    <div class="field">
+      <label>Вложения — фото / видео блюда</label>
+      <div id="uAttachList"></div>
+      <button class="btn secondary sm" id="uAddAttach" type="button">+ Добавить фото / видео</button>
+    </div>
+
+    <button class="btn block" id="uSave" style="margin-top:6px;">Создать задачу</button>
+  `, ()=>{
+    let chosenProject = defaultTarget;
+    let chosenAssignee = state.currentUserId;
+    const haveAtHome = new Set();
+    const attachments = [];
+
+    const syncAssigneeVisibility = ()=>{
+      const proj = projectById(chosenProject);
+      const isPersonal = !proj || proj.type==='personal';
+      document.getElementById('uAssigneeField').style.display = isPersonal? 'none':'block';
+      document.getElementById('uAssigneeAuto').style.display = isPersonal? 'block':'none';
+      if(isPersonal) chosenAssignee = state.currentUserId;
+    };
+    document.querySelectorAll('#uProject button').forEach(b=>b.onclick=()=>{
+      chosenProject=b.dataset.v;
+      document.querySelectorAll('#uProject button').forEach(x=>x.classList.remove('active'));
+      b.classList.add('active');
+      syncAssigneeVisibility();
+    });
+    document.querySelectorAll('#uAssignee button').forEach(b=>b.onclick=()=>{ chosenAssignee=b.dataset.v; document.querySelectorAll('#uAssignee button').forEach(x=>x.classList.remove('active')); b.classList.add('active'); });
+    syncAssigneeVisibility();
+
+    document.querySelectorAll('[data-uing]').forEach(b=>b.onclick=()=>{
+      const i = b.dataset.uing;
+      if(haveAtHome.has(i)){ haveAtHome.delete(i); b.classList.remove('done'); b.textContent=''; }
+      else { haveAtHome.add(i); b.classList.add('done'); b.textContent='✓'; }
+    });
+
+    const renderAttachList = ()=>{
+      document.getElementById('uAttachList').innerHTML = attachments.map((a,i)=>`
+        <div class="attach-row"><div class="t">${a.title}</div><button class="btn ghost sm" data-rm-attach="${i}" type="button">Убрать</button></div>
+      `).join('');
+      document.querySelectorAll('[data-rm-attach]').forEach(b=>b.onclick=()=>{ attachments.splice(Number(b.dataset.rmAttach),1); renderAttachList(); });
+    };
+    document.getElementById('uAddAttach').onclick = ()=>{
+      const name = prompt('Название файла (например: Фото готового блюда.jpg)');
+      if(name && name.trim()){ attachments.push({title:name.trim(), url:'вложение', price:''}); renderAttachList(); }
+    };
+
+    document.getElementById('uSave').onclick = ()=>{
+      const checklist = tmpl.ingredients.map((ing,i)=>({
+        id: uid('c'), text: ing.name, amount: ing.amount, unit: ing.unit, done: haveAtHome.has(String(i))
+      }));
+      const comment = document.getElementById('uComment').value.trim();
+      const comments = [];
+      if(tmpl.instructions) comments.push({author: state.currentUserId, text:`📋 Рецепт: ${tmpl.instructions}`, date:'только что'});
+      if(comment) comments.push({author: state.currentUserId, text:comment, date:'только что'});
+      const newTask = {
+        id: uid('t'), projectId: chosenProject, title: tmpl.name, done:false,
+        date: document.getElementById('uDate').value || todayStr(), planned:30, assignee: chosenAssignee,
+        checklist, comments,
+        attachments: [...(tmpl.attachments||[]), ...attachments], fromTemplate:true
+      };
+      syncTaskDoneFromChecklist(newTask);
+      state.tasks.push(newTask);
+      closeModal();
+      navigate('home');
+      toast('Задача создана из шаблона · смотрите на Главной');
+    };
+  });
+}
+
+function openInvite(projectId){
+  openModal(`
+    <div class="sheet-title">Пригласить участника</div>
+    <div class="proj-sub" style="margin:6px 0 14px;">В общем проекте всегда минимум 2 участника. Пригласите по ссылке или e-mail.</div>
+    <div class="field"><label>Ссылка-приглашение</label><input type="text" readonly value="planner.app/invite/${projectId}-x92k"></div>
+    <button class="btn block" onclick="toast('Ссылка скопирована')">Скопировать ссылку</button>
+  `);
+}
+
+function openRenameGuide(){
+  openModal(`
+    <div class="sheet-title">Название коллекции</div>
+    <div class="field" style="margin-top:14px;"><input type="text" id="gName" value="${state.guide.title}"></div>
+    <button class="btn block" id="gSave">Сохранить</button>
+  `, ()=>{
+    document.getElementById('gSave').onclick = ()=>{
+      state.guide.title = document.getElementById('gName').value.trim() || state.guide.title;
+      closeModal();
+      toast('Название обновлено');
+    };
+  });
+}
+
+function openEditGuideEntry(id){
+  const entry = state.guide.entries.find(e=>e.id===id);
+  if(!entry) return;
+  openModal(`
+    <div class="sheet-title">Редактировать запись</div>
+    <div class="field" style="margin-top:14px;"><label>Тип записи</label>
+      <div class="chip-select" id="gType">
+        <button data-v="quote" class="${entry.type==='quote'?'active':''}">Цитата</button>
+        <button data-v="note" class="${entry.type==='note'?'active':''}">Заметка</button>
+      </div>
+    </div>
+    <div class="field"><label>Текст</label><textarea id="gText" placeholder="Введите текст">${entry.text}</textarea></div>
+    <div id="gQuoteFields">
+      <div class="field"><label>Автор</label><input type="text" id="gAuthor" placeholder="Например: Лев Толстой" value="${entry.author||''}"></div>
+      <div class="field"><label>Произведение</label><input type="text" id="gWork" placeholder="Например: Война и мир" value="${entry.work||''}"></div>
+    </div>
+    <button class="btn block" id="gSave2">Сохранить</button>
+  `, ()=>{
+    let type = entry.type;
+    const sync = ()=>{ document.getElementById('gQuoteFields').style.display = type==='quote'?'block':'none'; };
+    document.querySelectorAll('#gType button').forEach(b=>b.onclick=()=>{
+      type=b.dataset.v;
+      document.querySelectorAll('#gType button').forEach(x=>x.classList.remove('active'));
+      b.classList.add('active');
+      sync();
+    });
+    sync();
+    document.getElementById('gSave2').onclick = ()=>{
+      const text = document.getElementById('gText').value.trim();
+      if(!text){ toast('Введите текст записи'); return; }
+      entry.type = type;
+      entry.text = text;
+      if(type==='quote'){
+        entry.author = document.getElementById('gAuthor').value.trim();
+        entry.work = document.getElementById('gWork').value.trim();
+      } else {
+        delete entry.author;
+        delete entry.work;
+      }
+      closeModal();
+      toast('Запись обновлена');
+    };
+  });
+}
+
+function openCreateGuideEntry(){
+  openModal(`
+    <div class="sheet-title">Новая запись</div>
+    <div class="field" style="margin-top:14px;"><label>Тип записи</label>
+      <div class="chip-select" id="gType">
+        <button data-v="quote" class="active">Цитата</button>
+        <button data-v="note">Заметка</button>
+      </div>
+    </div>
+    <div class="field"><label>Текст</label><textarea id="gText" placeholder="Введите текст"></textarea></div>
+    <div id="gQuoteFields">
+      <div class="field"><label>Автор</label><input type="text" id="gAuthor" placeholder="Например: Лев Толстой"></div>
+      <div class="field"><label>Произведение</label><input type="text" id="gWork" placeholder="Например: Война и мир"></div>
+    </div>
+    <button class="btn block" id="gSave2">Добавить</button>
+  `, ()=>{
+    let type='quote';
+    const sync = ()=>{ document.getElementById('gQuoteFields').style.display = type==='quote'?'block':'none'; };
+    document.querySelectorAll('#gType button').forEach(b=>b.onclick=()=>{
+      type=b.dataset.v;
+      document.querySelectorAll('#gType button').forEach(x=>x.classList.remove('active'));
+      b.classList.add('active');
+      sync();
+    });
+    sync();
+    document.getElementById('gSave2').onclick = ()=>{
+      const text = document.getElementById('gText').value.trim();
+      if(!text){ toast('Введите текст записи'); return; }
+      const entry = { id: uid('g'), type, text };
+      if(type==='quote'){
+        entry.author = document.getElementById('gAuthor').value.trim();
+        entry.work = document.getElementById('gWork').value.trim();
+      }
+      state.guide.entries.push(entry);
+      closeModal();
+      toast('Запись добавлена в коллекцию');
+    };
+  });
+}
+
+function openGuide(){
+  openModal(`
+    <div class="sheet-title">Руководство пользователя</div>
+    <div class="proj-sub" style="margin:8px 0 16px;">Коротко о том, как устроено приложение</div>
+    <div style="display:flex; flex-direction:column; gap:14px; font-size:13.5px; line-height:1.5;">
+      <div><b>📁 Проект</b> — контейнер для дел на одну тему: обычный или проект-шаблон (например «Рецепты»). Личный или общий. Задачу также можно создать вообще без проекта.</div>
+      <div><b>✅ Задача</b> — конкретное действие с датой, ответственным, чек-листом, вложениями и обсуждением. Может быть регулярной (повторяться по дням/неделям/месяцам).</div>
+      <div><b>📋 Шаблон</b> — заготовка задачи внутри проекта-шаблона: применяется многократно и создаёт новую задачу в выбранном (или заранее настроенном) проекте.</div>
+      <div><b>👥 Общий проект</b> — минимум 2 участника; любой может редактировать, добавлять и удалять задачи, приглашать и исключать участников.</div>
+      <div><b>📖 Напутствие дня</b> — личная коллекция цитат (с автором и произведением) и заметок: каждый день на Главной показывается одна случайная запись.</div>
+      <div><b>📊 Прогресс</b> — считается автоматически по дню, неделе, месяцу, году и проекту.</div>
+    </div>
+  `);
+}
+
+function openEditProfile(){
+  const u = userById(state.currentUserId);
+  const avatars = ['👩🏻','👩🏼','👩🏽','👩🏾','👩🏿','🧑🏻','🧑🏼','🧑🏽','🧑🏾','🧑🏿','👨🏻','👨🏼','👨🏽','👨🏾','👨🏿','🐶','🐱','🦊','🐼','🐨','🦄','🌟','🌸','🍀'];
+  openModal(`
+    <div class="sheet-title">Редактировать профиль</div>
+    <div class="field" style="margin-top:14px;"><label>Аватар</label>
+      <div style="display:flex; align-items:center; gap:10px; margin-bottom:8px;">
+        <span class="avatar av" style="background:${u.color}" id="profilePreviewEmoji">${u.emoji}</span>
+        <div class="proj-sub">Выберите эмодзи ниже</div>
+      </div>
+      <div style="display:flex; flex-wrap:wrap; gap:6px;" id="emojiGrid">
+        ${avatars.map(e=>`<button data-emoji="${e}" class="icon-btn" style="width:36px;height:36px;font-size:18px;${u.emoji===e?'border:2px solid var(--sage);':''}">${e}</button>`).join('')}
+      </div>
+    </div>
+    <div class="field"><label>ФИО</label><input type="text" id="pFullName" value="${u.fullName||''}" placeholder="Ваше полное имя"></div>
+    <div class="field"><label>Имя (отображаемое)</label><input type="text" id="pNickname" value="${u.name}" placeholder="Как вас называть"></div>
+    <div class="field"><label>Email</label><input type="email" id="pEmail" value="${u.email||''}" placeholder="email@example.com"></div>
+    <div class="proj-sub" style="margin: 4px 0 14px;">Почта используется для входа и приглашений в общие проекты</div>
+    <button class="btn block" id="pSave">Сохранить</button>
+  `, ()=>{
+    let chosenEmoji = u.emoji;
+    document.querySelectorAll('[data-emoji]').forEach(b=>b.onclick=()=>{
+      chosenEmoji = b.dataset.emoji;
+      document.getElementById('profilePreviewEmoji').textContent = chosenEmoji;
+      document.querySelectorAll('[data-emoji]').forEach(x=>x.style.border='');
+      b.style.border = '2px solid var(--sage)';
+    });
+    document.getElementById('pSave').onclick = ()=>{
+      const fullName = document.getElementById('pFullName').value.trim();
+      const nick = document.getElementById('pNickname').value.trim();
+      const email = document.getElementById('pEmail').value.trim();
+      if(!nick){ toast('Введите отображаемое имя'); return; }
+      u.fullName = fullName;
+      u.name = nick;
+      u.emoji = chosenEmoji;
+      u.email = email;
+      closeModal();
+      toast('Профиль обновлён');
+    };
+  });
+}
+
+function openTaskDetail(id){
+  const t = state.tasks.find(t=>t.id===id);
+  const p = projectById(t.projectId);
+  const checkPct = t.checklist.length? Math.round(t.checklist.filter(c=>c.done).length/t.checklist.length*100):null;
+
+  openModal(`
+    <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:10px;">
+      <div>
+        ${p?`<span class="chip">${p.icon} ${p.name}</span>`:`<span class="chip">🗂️ Без проекта</span>`}
+        <div class="sheet-title" style="margin-top:10px;">${t.title}</div>
+      </div>
+      <button class="check ${t.done?'done':''}" data-tt="${t.id}" style="margin-top:2px;">${t.done?'✓':''}</button>
+    </div>
+    <div class="task-meta" style="margin:10px 0 16px; font-size:12.5px;">
+      <span class="chip">📅 ${fmtDateHuman(t.date)}</span>
+      <span class="chip">⏱ ${fmtMinutes(t.planned)}</span>
+      ${t.recurringGroup?`<span class="chip">🔁 ${freqLabel(t.recurringFreq, t.recurringInterval)}</span>`:''}
+    </div>
+
+    <div class="folder-title">Ответственный</div>
+    <div class="chip-select" id="taskAssignee" style="margin-bottom:16px;">
+      ${state.users.map(u=>`<button data-v="${u.id}" class="${u.id===t.assignee?'active':''}">${u.emoji} ${u.name}</button>`).join('')}
+    </div>
+
+    <div class="folder-title">☑️ Чек-лист ${checkPct!==null?`· ${checkPct}%`:''}</div>
+    <div id="checklistBox">${renderChecklist(t)}</div>
+    <div style="display:flex; gap:8px; margin:8px 0 18px;">
+      <input type="text" id="newCheckText" class="mini-input" placeholder="Добавить пункт">
+      <button class="btn sm" id="addCheckBtn">Добавить</button>
+    </div>
+
+    <div class="folder-title">📎 Вложения</div>
+    ${t.attachments.length? t.attachments.map(a=>`
+      <div class="attach-row"><div><div class="t">${a.title}</div>${a.url?`<a href="#">${a.url}</a>`:''}</div>${a.price?`<div class="p">${a.price}</div>`:''}</div>
+    `).join('') : `<div class="proj-sub" style="margin-bottom:12px;">Нет вложений</div>`}
+
+    <div class="folder-title">💬 Обсуждение</div>
+    <div id="commentsBox">${t.comments.map(c=>`
+      <div class="comment"><div class="who">${userById(c.author).name}</div><div class="txt">${c.text}</div><div class="when">${c.date}</div></div>
+    `).join('') || `<div class="proj-sub" style="margin-bottom:12px;">Пока нет комментариев</div>`}</div>
+    <div style="display:flex; gap:8px; margin-top:8px;">
+      <input type="text" id="newComment" class="mini-input" placeholder="Написать комментарий">
+      <button class="btn sm" id="addCommentBtn">Отправить</button>
+    </div>
+
+    <button class="btn danger block" style="margin-top:20px;" id="deleteTaskBtn">Удалить задачу</button>
+  `, ()=>{
+    document.querySelector('[data-tt]').onclick = ()=>{ toggleTask(t.id); openTaskDetail(t.id); };
+    document.querySelectorAll('#taskAssignee button').forEach(b=>b.onclick=()=>{
+      t.assignee = b.dataset.v;
+      openTaskDetail(t.id);
+    });
+    bindChecklistEvents(t);
+    document.getElementById('addCheckBtn').onclick = ()=>{
+      const v = document.getElementById('newCheckText').value.trim();
+      if(!v) return;
+      t.checklist.push({id:uid('c'), text:v, done:false});
+      syncTaskDoneFromChecklist(t);
+      openTaskDetail(t.id);
+    };
+    document.getElementById('addCommentBtn').onclick = ()=>{
+      const v = document.getElementById('newComment').value.trim();
+      if(!v) return;
+      t.comments.push({author: state.currentUserId, text:v, date:'только что'});
+      openTaskDetail(t.id);
+    };
+    document.getElementById('deleteTaskBtn').onclick = ()=>{
+      state.tasks = state.tasks.filter(x=>x.id!==t.id);
+      closeModal();
+      toast('Задача удалена');
+    };
+  });
+}
+function renderChecklist(t){
+  const sorted = t.checklist.slice().sort(doneSort);
+  return sorted.map(c=>`
+    <div class="checklist-row">
+      <button class="check ${c.done?'done':''}" data-ck="${c.id}" style="width:19px;height:19px;font-size:10px;">${c.done?'✓':''}</button>
+      <span class="txt" style="${c.done?'text-decoration:line-through;color:var(--text-faint);':''} font-size:13.5px;">${c.text}</span>
+      ${c.amount!=null?`<span style="margin-left:auto; font-size:11.5px; color:var(--text-soft);">${c.amount} ${c.unit||''}</span>`:''}
+    </div>
+  `).join('') || `<div class="proj-sub" style="margin-bottom:8px;">Пунктов пока нет</div>`;
+}
+function bindChecklistEvents(t){
+  document.querySelectorAll('[data-ck]').forEach(b=>b.onclick=()=>{
+    const item = t.checklist.find(c=>c.id===b.dataset.ck);
+    item.done = !item.done;
+    syncTaskDoneFromChecklist(t);
+    openTaskDetail(t.id);
+  });
+}
+
+/* ============ INIT ============ */
+render();
+
+</script>
+</body>
+</html>
