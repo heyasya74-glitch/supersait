@@ -634,6 +634,24 @@ function toggleNotifications(){
 }
 
 let __notifTimer = null;
+let __syncTimer = null;
+
+function startAutoSync(){
+  if(__syncTimer) clearInterval(__syncTimer);
+  __syncTimer = setInterval(async ()=>{
+    try {
+      const cloudData = await loadFromCloud();
+      if(!cloudData) return;
+      const cloudTime = (cloudData.state && cloudData.state.lastModified) || 0;
+      if(cloudTime > (state.lastModified || 0)){
+        applyStateData(cloudData);
+        state.route = state.route; // keep current page
+        render();
+        window.__lastCloudSync = Date.now();
+      }
+    } catch(e){}
+  }, 30000);
+}
 function startNotificationPolling(){
   if(__notifTimer) clearInterval(__notifTimer);
   __notifTimer = setInterval(checkAndNotify, 60000); // every minute
@@ -1478,7 +1496,7 @@ function viewSettings(){
         <span style="color:var(--text-faint);">⇄</span>
       </div>
       <div class="settings-row">
-        <div><div class="lbl">☁️ Облачная синхронизация</div><div class="sub" id="cloudStatus">Supabase · подключено</div></div>
+        <div><div class="lbl">☁️ Облачная синхронизация</div><div class="sub" id="cloudStatus">Авто-синхронизация каждые 30 сек${window.__lastCloudSync?` · Последняя: ${new Date(window.__lastCloudSync).toLocaleTimeString('ru-RU')}`:''}</div></div>
         <span style="color:var(--sage);">✓</span>
       </div>
       <div class="settings-row" style="cursor:pointer;" data-cloud-sync>
@@ -2622,6 +2640,7 @@ function bindChecklistEvents(t){
 /* ============ INIT ============ */
 try {
   loadState();
+  startAutoSync();
   if(state.notificationsEnabled && 'Notification' in window && Notification.permission==='granted'){
     startNotificationPolling();
   }
