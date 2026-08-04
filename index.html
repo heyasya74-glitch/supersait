@@ -1129,11 +1129,11 @@ function viewProjects(){
   `;
 }
 function projectListCard(p){
-  const tasks = p.virtual? noProjectTasks() : state.tasks.filter(t=>t.projectId===p.id);
-  const todayTasks = tasks.filter(t=>t.date===todayStr() && !t.done);
-  const todayDone = tasks.filter(t=>t.date===todayStr() && t.done);
-  const totalDone = tasks.filter(t=>t.done).length;
-  const todayPct = (todayTasks.length + todayDone.length)>0 ? Math.round(todayDone.length/(todayTasks.length+todayDone.length)*100) : 0;
+  const allTasks = p.virtual? noProjectTasks() : state.tasks.filter(t=>t.projectId===p.id);
+  const tasks = allTasks.filter(t=>!t.done || t.date===todayStr());
+  const doneToday = tasks.filter(t=>t.done && t.date===todayStr()).length;
+  const toDo = tasks.filter(t=>!t.done).length;
+  const total = tasks.length;
   return `
     <div class="card" style="padding:0;">
       <button data-open-project="${p.id}" style="width:100%; text-align:left; border:none; background:none; cursor:pointer; padding:14px; display:flex; align-items:center; gap:12px;">
@@ -1146,10 +1146,7 @@ function projectListCard(p){
           <div class="proj-sub" style="font-size:12px;">
             ${p.type==='template'
               ? `${state.templateFolders[p.id]?.reduce((s,f)=>s+f.templates.length,0)||0} шаблонов`
-              : (todayTasks.length + todayDone.length)>0
-                ? `Сегодня: ${todayTasks.length} к выполнению${todayDone.length>0?` · ${todayDone.length} сделано`:''}${todayPct>0?` · ${todayPct}%`:''}`
-                : `Сегодня задач нет`}
-            ${!p.virtual && p.type!=='template' ? `<span style="color:var(--text-faint);"> · всего: ${tasks.length} задач, ${totalDone} выполнено</span>` : ''}
+              : `${toDo} к выполнению${doneToday>0?` · ${doneToday} сделано сегодня`:''}${total>0?` · всего активно: ${total}`:''}`}
           </div>
         </div>
         <div class="avatar-stack" style="flex-shrink:0;">
