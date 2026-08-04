@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<opml version="2.0">
+  <head><title>Хозяйство — планировщик жизни</title></head>
+  <body>
+    <outline text="Ссылки">
+      <outline text="Сайт: heyasya74-glitch.github.io/supersait/"/>
+      <outline text="GitHub: github.com/heyasya74-glitch/supersait"/>
+      <outline text="Файл: Desktop/projects/index.html"/>
+      <outline text="База: Supabase"/>
+    </outline>
+    <outline text="Пользователи: Ася (asya) и Стёпа (stepa)"/>
+    <outline text="Функции">
+      <outline text="Главная: напутствие дня, задачи на сегодня, прогресс, список продуктов"/>
+      <outline text="Проекты: список карточек, файлы, шаблоны-рецепты"/>
+      <outline text="Календарь: задачи + покупки по дням"/>
+      <outline text="Настройки: тема, пояс, уведомления, экспорт/импорт, облако"/>
+    </outline>
+    <outline text="Синхронизация: localStorage + Supabase, авто 30 сек"/>
+    <outline text="Напутствия">
+      <outline text="Дисциплина — это форма заботы о будущем себе."/>
+      <outline text="Маленькие шаги каждый день складываются в большой путь."/>
+      <outline text="Порядок в делах — это спокойствие в голове."/>
+      <outline text="Забота о доме — это тоже забота друг о друге."/>
+      <outline text="Главным может быть только что-то одно — Джей Попазан, Начни с главного"/>
+    </outline>
+    <outline text="Рецепты">
+      <outline text="Овсянка с ягодами: хлопья 200г, молоко 300мл, ягоды 100г, мёд"/>
+      <outline text="Лазанья: листы, фарш 500г, бешамель, сыр 200г, томатный соус"/>
+      <outline text="Цезарь: филе 300г, романо, пармезан 50г, сухарики 80г"/>
+    </outline>
+    <outline text="Идеи: PWA, авторизация, приоритеты, drag&amp;drop, статистика"/>
+  </body>
+</opml>
