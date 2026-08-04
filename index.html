@@ -466,6 +466,7 @@ const state = {
   },
   shoppingItems: [], // { id, name, amount, unit, done, date }
   projectFiles: {}, // projectId -> { folders: [{name, id}], files: [{id,name,type,dataUrl,folderId,addedBy,size}] }
+  lastModified: Date.now(),
 };
 
 let expandedTasks = new Set();
@@ -487,32 +488,35 @@ async function cloudFetch(path, options={}){
 }
 
 async function loadFromCloud(){
-  if(SUPABASE_URL.includes('YOUR')) return false;
+  if(SUPABASE_URL.includes('YOUR')) return null;
   try {
     const res = await cloudFetch(`planner_state?key=eq.main&select=data`);
-    if(!res.ok){ console.log('Cloud fetch status:', res.status); return false; }
+    if(!res.ok){ console.log('Cloud fetch:', res.status); return null; }
     const rows = await res.json();
-    if(!rows.length || !rows[0].data) return false;
-    const d = rows[0].data;
-    if(d.uidCounter) uidCounter = Math.max(uidCounter, d.uidCounter);
-    if(d.state){
-      const s = d.state;
-      if(s.currentUserId) state.currentUserId = s.currentUserId;
-      if(s.projectTab) state.projectTab = s.projectTab;
-      if(s.calendarSelected) state.calendarSelected = s.calendarSelected;
-      if(s.mergedAssignees) state.mergedAssignees = s.mergedAssignees;
-      if(s.timezone) state.timezone = s.timezone;
-      if(s.notificationsEnabled !== undefined) state.notificationsEnabled = s.notificationsEnabled;
-      if(s.users) state.users = s.users;
-      if(s.guide) state.guide = s.guide;
-      if(s.projects) state.projects = s.projects;
-      if(s.tasks) state.tasks = s.tasks;
-      if(s.templateFolders) state.templateFolders = s.templateFolders;
-      if(s.shoppingItems) state.shoppingItems = s.shoppingItems;
-      if(s.projectFiles) state.projectFiles = s.projectFiles;
-    }
-    return true;
-  } catch(e){ console.log('Cloud load error:', e); return false; }
+    if(!rows.length || !rows[0].data) return null;
+    return rows[0].data; // { uidCounter, state: {..., lastModified} }
+  } catch(e){ console.log('Cloud error:', e); return null; }
+}
+
+function applyStateData(d){
+  if(d.uidCounter) uidCounter = Math.max(uidCounter, d.uidCounter);
+  if(d.state){
+    const s = d.state;
+    if(s.currentUserId) state.currentUserId = s.currentUserId;
+    if(s.projectTab) state.projectTab = s.projectTab;
+    if(s.calendarSelected) state.calendarSelected = s.calendarSelected;
+    if(s.mergedAssignees) state.mergedAssignees = s.mergedAssignees;
+    if(s.timezone) state.timezone = s.timezone;
+    if(s.notificationsEnabled !== undefined) state.notificationsEnabled = s.notificationsEnabled;
+    if(s.users) state.users = s.users;
+    if(s.guide) state.guide = s.guide;
+    if(s.projects) state.projects = s.projects;
+    if(s.tasks) state.tasks = s.tasks;
+    if(s.templateFolders) state.templateFolders = s.templateFolders;
+    if(s.shoppingItems) state.shoppingItems = s.shoppingItems;
+    if(s.projectFiles) state.projectFiles = s.projectFiles;
+    if(s.lastModified) state.lastModified = s.lastModified;
+  }
 }
 
 async function saveToCloud(){
@@ -534,6 +538,7 @@ async function saveToCloud(){
         templateFolders: state.templateFolders,
         shoppingItems: state.shoppingItems,
         projectFiles: state.projectFiles,
+        lastModified: state.lastModified,
       },
     };
     const res = await cloudFetch('planner_state', {
@@ -544,15 +549,21 @@ async function saveToCloud(){
       },
       body: JSON.stringify({ key:'main', data:payload, updated_at:new Date().toISOString() }),
     });
-    if(!res.ok) console.log('Cloud save status:', res.status);
+    console.log('Cloud save:', res.ok ? 'OK' : 'FAIL '+res.status);
   } catch(e){ console.log('Cloud save error:', e); }
 }
 
 async function cloudSyncNow(){
   try {
-    const ok = await loadFromCloud();
-    if(ok){ render(); toast('Данные синхронизированы из облака'); }
-    else toast('Данных в облаке пока нет или ошибка');
+    const cloudData = await loadFromCloud();
+    if(cloudData){
+      applyStateData(cloudData);
+      state.route = { name:'home', params:{} };
+      render();
+      toast('Данные синхронизированы из облака');
+    } else {
+      toast('Данных в облаке пока нет или ошибка');
+    }
   } catch(e){ toast('Ошибка соединения с облаком'); }
 }
 
@@ -720,6 +731,7 @@ function toast(msg){
 /* ============ PERSISTENCE ============ */
 function saveState(){
   try {
+    state.lastModified = Date.now();
     const data = {
       uidCounter,
       state: {
@@ -736,6 +748,7 @@ function saveState(){
         templateFolders: state.templateFolders,
         shoppingItems: state.shoppingItems,
         projectFiles: state.projectFiles,
+        lastModified: state.lastModified,
       },
       expandedTasks: [...expandedTasks],
     };
@@ -744,36 +757,29 @@ function saveState(){
   } catch(e){}
 }
 function loadState(){
-  let loaded = false;
+  let localLoaded = false;
   try {
     const raw = localStorage.getItem('planner_data');
     if(raw){
       const data = JSON.parse(raw);
-      if(data.uidCounter) uidCounter = data.uidCounter;
-      if(data.state){
-        if(data.state.currentUserId) state.currentUserId = data.state.currentUserId;
-        if(data.state.projectTab) state.projectTab = data.state.projectTab;
-        if(data.state.timezone) state.timezone = data.state.timezone;
-        if(data.state.notificationsEnabled !== undefined) state.notificationsEnabled = data.state.notificationsEnabled;
-        if(data.state.calendarSelected) state.calendarSelected = data.state.calendarSelected;
-        if(data.state.mergedAssignees) state.mergedAssignees = data.state.mergedAssignees;
-        if(data.state.users) state.users = data.state.users;
-        if(data.state.guide) state.guide = data.state.guide;
-        if(data.state.projects) state.projects = data.state.projects;
-        if(data.state.tasks) state.tasks = data.state.tasks;
-        if(data.state.templateFolders) state.templateFolders = data.state.templateFolders;
-        if(data.state.shoppingItems) state.shoppingItems = data.state.shoppingItems;
-        if(data.state.projectFiles) state.projectFiles = data.state.projectFiles;
-      }
+      applyStateData(data);
       if(data.expandedTasks) expandedTasks = new Set(data.expandedTasks);
-      loaded = true;
+      localLoaded = true;
     }
   } catch(e){}
-  // Cloud sync overrides localStorage if available
-  loadFromCloud().then(fromCloud=>{
-    if(fromCloud){ state.route = { name:'home', params:{} }; render(); }
+  // After render, compare with cloud
+  loadFromCloud().then(cloudData=>{
+    if(!cloudData) return;
+    const cloudTime = (cloudData.state && cloudData.state.lastModified) || 0;
+    const localTime = state.lastModified || 0;
+    if(cloudTime > localTime){
+      applyStateData(cloudData);
+      state.route = { name:'home', params:{} };
+      render();
+    } else if(localTime > cloudTime){
+      saveToCloud();
+    }
   });
-  return loaded;
 }
 
 function exportAllData(){
