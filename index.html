@@ -1190,7 +1190,7 @@ function mergedIngredientsCard(dateStr){
       ${allItems.length? allItems.map(i=>`
         <div class="checklist-row ${i.done?'done':''}">
           <button class="check ${i.done?'done':''}" data-shopping-check="${i.manual?`manual::${i.id}`:`recipe::${dateStr}::${encodeURIComponent(i.name)}::${encodeURIComponent(i.unit||'')}`}" style="width:19px;height:19px;font-size:10px;">${i.done?'✓':''}</button>
-          <span class="txt" style="${i.done?'text-decoration:line-through;color:var(--text-faint);':''} font-size:13.5px;">${i.name}</span>
+          <span class="txt" style="${i.done?'text-decoration:line-through;color:var(--text-faint);':''} font-size:13.5px;${i.manual?'cursor:pointer;':''}" ${i.manual?`data-edit-shopping="${i.id}" title="Нажмите чтобы редактировать"`:''}>${i.name}</span>
           ${i.amount!=null?`<span style="margin-left:auto; font-weight:700; font-size:12.5px;">${i.amount} ${i.unit||''}</span>`:''}
           ${i.manual?`<button class="btn ghost sm" data-rm-shopping="${i.id}" type="button">×</button>`:''}
         </div>
@@ -1674,6 +1674,17 @@ function bindViewEvents(){
     state.shoppingItems = state.shoppingItems.filter(s=>s.id!==b.dataset.rmShopping);
     render();
   });
+  document.querySelectorAll('[data-edit-shopping]').forEach(b=>b.onclick=()=>{
+    const item = state.shoppingItems.find(s=>s.id===b.dataset.editShopping);
+    if(!item) return;
+    const newName = prompt('Название продукта:', item.name);
+    if(newName && newName.trim()) item.name = newName.trim();
+    const newAmt = prompt('Количество:', item.amount);
+    if(newAmt!==null) item.amount = Number(newAmt)||0;
+    const newUnit = prompt('Единица измерения:', item.unit||'');
+    if(newUnit!==null) item.unit = newUnit.trim();
+    render();
+  });
   const shoppingAddBtn = document.getElementById('shoppingAddBtn');
   if(shoppingAddBtn) shoppingAddBtn.onclick = ()=>{
     const name = document.getElementById('shoppingInput')?.value.trim();
@@ -1861,6 +1872,17 @@ function openCreateTask(defaultProjectId){
     </div>
 
     <div class="settings-row" style="padding:12px 2px;">
+      <div><div class="lbl" style="font-size:13.5px;">Два чек-листа (на двоих)</div><div class="sub">У каждого свой список задач</div></div>
+      <button class="switch" id="fDualSwitch" type="button"></button>
+    </div>
+    <div class="field" id="fSecondAssigneeField" style="display:none;">
+      <label>Второй ответственный</label>
+      <div class="chip-select" id="fSecondAssignee">
+        ${state.users.filter(u=>u.id!==state.currentUserId).map(u=>`<button data-v="${u.id}" class="active">${u.emoji} ${u.name}</button>`).join('')}
+      </div>
+    </div>
+
+    <div class="settings-row" style="padding:12px 2px;">
       <div><div class="lbl" style="font-size:13.5px;">Повторяющаяся задача</div><div class="sub">Например, раз в 2 дня или раз в 5 недель</div></div>
       <button class="switch" id="fRepeatSwitch" type="button"></button>
     </div>
@@ -1883,6 +1905,17 @@ function openCreateTask(defaultProjectId){
     let builtChecklist = [];
     let builtAttachments = [];
     let repeatOn = false;
+    let dualOn = false;
+    let chosenSecondAssignee = state.users.find(u=>u.id!==state.currentUserId)?.id || state.users[0].id;
+
+    document.getElementById('fDualSwitch').onclick = ()=>{
+      dualOn = !dualOn;
+      document.getElementById('fDualSwitch').classList.toggle('on', dualOn);
+      document.getElementById('fSecondAssigneeField').style.display = dualOn? 'block':'none';
+    };
+    document.querySelectorAll('#fSecondAssignee button').forEach(b=>b.onclick=()=>{ chosenSecondAssignee=b.dataset.v; document.querySelectorAll('#fSecondAssignee button').forEach(x=>x.classList.remove('active')); b.classList.add('active'); });
+
+    document.getElementById('fRepeatSwitch').onclick = ()=>{
     let chosenFreq = 'daily';
 
     const syncAssigneeVisibility = ()=>{
@@ -1956,7 +1989,9 @@ function openCreateTask(defaultProjectId){
       const newTask = {
         id: uid('t'), projectId: chosenProject==='none'? null : chosenProject, title, done:false,
         date: baseDate, planned: Number(document.getElementById('fTime').value)||15,
-        assignee: chosenAssignee, checklist: baseChecklist, comments:[], attachments: builtAttachments.slice()
+        assignee: chosenAssignee, checklist: baseChecklist, comments:[], attachments: builtAttachments.slice(),
+        secondaryChecklist: dualOn ? [] : undefined,
+        secondaryAssignee: dualOn ? chosenSecondAssignee : undefined,
       };
       if(repeatOn){
         const groupId = uid('rec');
@@ -2728,7 +2763,7 @@ function openTaskDetail(id){
         </div>
       </div>
     </div>
-    <button class="btn ghost sm" style="margin-bottom:10px; color:var(--clay);" onclick="var x=state.tasks.find(t=>t.id==='${t.id}');if(x){x.secondaryChecklist=null;x.secondaryAssignee=null;closeModal();openTaskDetail('${t.id}');}">Убрать второй чек-лист</button>
+    <button class="btn ghost sm" data-rm-second style="margin-bottom:10px; color:var(--clay);">Убрать второй чек-лист</button>
     ` : `
     <div class="folder-title">☑️ Чек-лист ${checkPct!==null?`· ${checkPct}%`:''}</div>
     <div id="checklistBox">${renderChecklistItems(t.checklist, t.id, 'c')}</div>
@@ -2736,7 +2771,7 @@ function openTaskDetail(id){
       <input type="text" id="newCheckText" class="mini-input" placeholder="Добавить пункт">
       <button class="btn sm" id="addCheckBtn">+</button>
     </div>
-    ${!hasSecond?`<button class="btn secondary sm block" style="margin-bottom:10px;" onclick="var x=state.tasks.find(t=>t.id==='${t.id}');if(x){var o=state.users.find(u=>u.id!==x.assignee);x.secondaryChecklist=[];x.secondaryAssignee=o?o.id:state.users[0].id;closeModal();openTaskDetail('${t.id}');}">👥 Добавить второй чек-лист</button>`:''}
+    ${!hasSecond?`<button class="btn secondary sm block" style="margin-bottom:10px;" id="addSecondListBtn">👥 Добавить второй чек-лист</button>`:''}
     `}
 
     <div class="folder-title">💬 Обсуждение</div>
@@ -2808,6 +2843,26 @@ function openTaskDetail(id){
       syncTaskDoneFromChecklist(t);
       openTaskDetail(t.id);
     });
+
+    setTimeout(()=>{
+      const btn = document.getElementById('addSecondListBtn');
+      if(btn) btn.onclick = ()=>{
+        const other = state.users.find(u=>u.id!==t.assignee);
+        t.secondaryChecklist = [];
+        t.secondaryAssignee = other ? other.id : state.users[0].id;
+        openTaskDetail(t.id);
+      };
+    }, 50);
+
+    // Remove second checklist
+    setTimeout(()=>{
+      const btn2 = document.querySelector('[data-rm-second]');
+      if(btn2) btn2.onclick = ()=>{
+        t.secondaryChecklist = null;
+        t.secondaryAssignee = null;
+        openTaskDetail(t.id);
+      };
+    }, 50);
 
     bindChecklistEvents(t);
     document.getElementById('addCommentBtn').onclick = ()=>{
