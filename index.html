@@ -802,6 +802,7 @@ function exportAllData(){
         templateFolders: state.templateFolders,
         shoppingItems: state.shoppingItems,
         projectFiles: state.projectFiles,
+        lastModified: state.lastModified,
       },
     };
     const blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
@@ -837,6 +838,7 @@ function importAllData(){
         if(data.state.templateFolders) state.templateFolders = data.state.templateFolders;
         if(data.state.shoppingItems) state.shoppingItems = data.state.shoppingItems;
         if(data.state.projectFiles) state.projectFiles = data.state.projectFiles;
+        if(data.state.lastModified) state.lastModified = data.state.lastModified;
       }
       state.route = { name:'home', params:{} };
       expandedTasks.clear();
