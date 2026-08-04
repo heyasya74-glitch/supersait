@@ -2728,7 +2728,7 @@ function openTaskDetail(id){
         </div>
       </div>
     </div>
-    <button class="btn ghost sm" data-remove-second-checklist style="margin-bottom:10px; color:var(--clay);">Убрать второй чек-лист</button>
+    <button class="btn ghost sm" style="margin-bottom:10px; color:var(--clay);" onclick="var x=state.tasks.find(t=>t.id==='${t.id}');if(x){x.secondaryChecklist=null;x.secondaryAssignee=null;closeModal();openTaskDetail('${t.id}');}">Убрать второй чек-лист</button>
     ` : `
     <div class="folder-title">☑️ Чек-лист ${checkPct!==null?`· ${checkPct}%`:''}</div>
     <div id="checklistBox">${renderChecklistItems(t.checklist, t.id, 'c')}</div>
@@ -2736,7 +2736,7 @@ function openTaskDetail(id){
       <input type="text" id="newCheckText" class="mini-input" placeholder="Добавить пункт">
       <button class="btn sm" id="addCheckBtn">+</button>
     </div>
-    ${!hasSecond?`<button class="btn secondary sm block" id="addSecondChecklistBtn" style="margin-bottom:10px;">👥 Добавить второй чек-лист</button>`:''}
+    ${!hasSecond?`<button class="btn secondary sm block" style="margin-bottom:10px;" onclick="var x=state.tasks.find(t=>t.id==='${t.id}');if(x){var o=state.users.find(u=>u.id!==x.assignee);x.secondaryChecklist=[];x.secondaryAssignee=o?o.id:state.users[0].id;closeModal();openTaskDetail('${t.id}');}">👥 Добавить второй чек-лист</button>`:''}
     `}
 
     <div class="folder-title">💬 Обсуждение</div>
@@ -2808,21 +2808,6 @@ function openTaskDetail(id){
       syncTaskDoneFromChecklist(t);
       openTaskDetail(t.id);
     });
-
-    const addSecondBtn = document.getElementById('addSecondChecklistBtn');
-    if(addSecondBtn) addSecondBtn.onclick = ()=>{
-      const other = state.users.find(u=>u.id!==t.assignee);
-      t.secondaryChecklist = [];
-      t.secondaryAssignee = other ? other.id : state.users[0].id;
-      openTaskDetail(t.id);
-    };
-
-    const removeSecondBtn = document.querySelector('[data-remove-second-checklist]');
-    if(removeSecondBtn) removeSecondBtn.onclick = ()=>{
-      t.secondaryChecklist = null;
-      t.secondaryAssignee = null;
-      openTaskDetail(t.id);
-    };
 
     bindChecklistEvents(t);
     document.getElementById('addCommentBtn').onclick = ()=>{
