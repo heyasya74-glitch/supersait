@@ -3,9 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Хозяйство — планировщик жизни</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;600;700&family=Golos+Text:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <title>Хозяйство — планировщик жизни</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;600;700&family=Golos+Text:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <style>
 :root{
   --bg:#F5F4EE;
@@ -471,6 +472,83 @@ const state = {
 let expandedTasks = new Set();
 let upcomingOpen = false;
 
+/* ============ SUPABASE CLOUD SYNC ============ */
+const SUPABASE_URL = 'https://qwrejxtfipjrfcxqlane.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_bffat_Bzci1d7f3Za90Y2w_wIzQhplI';
+let supabase = null;
+
+function initSupabase(){
+  if(typeof window.supabase !== 'undefined'){
+    supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  }
+}
+initSupabase();
+
+async function loadFromCloud(){
+  if(!supabase) return false;
+  try {
+    const { data, error } = await supabase
+      .from('planner_state')
+      .select('data')
+      .eq('key','main')
+      .single();
+    if(error || !data || !data.data) return false;
+    const d = data.data;
+    if(d.uidCounter) uidCounter = Math.max(uidCounter, d.uidCounter);
+    if(d.state){
+      const s = d.state;
+      if(s.currentUserId) state.currentUserId = s.currentUserId;
+      if(s.projectTab) state.projectTab = s.projectTab;
+      if(s.calendarSelected) state.calendarSelected = s.calendarSelected;
+      if(s.mergedAssignees) state.mergedAssignees = s.mergedAssignees;
+      if(s.timezone) state.timezone = s.timezone;
+      if(s.notificationsEnabled !== undefined) state.notificationsEnabled = s.notificationsEnabled;
+      if(s.users) state.users = s.users;
+      if(s.guide) state.guide = s.guide;
+      if(s.projects) state.projects = s.projects;
+      if(s.tasks) state.tasks = s.tasks;
+      if(s.templateFolders) state.templateFolders = s.templateFolders;
+      if(s.shoppingItems) state.shoppingItems = s.shoppingItems;
+      if(s.projectFiles) state.projectFiles = s.projectFiles;
+    }
+    return true;
+  } catch(e){ return false; }
+}
+
+async function saveToCloud(){
+  if(!supabase) return;
+  try {
+    const payload = {
+      uidCounter,
+      state: {
+        currentUserId: state.currentUserId,
+        projectTab: state.projectTab,
+        calendarSelected: state.calendarSelected,
+        mergedAssignees: state.mergedAssignees,
+        timezone: state.timezone,
+        notificationsEnabled: state.notificationsEnabled,
+        users: state.users,
+        guide: state.guide,
+        projects: state.projects,
+        tasks: state.tasks,
+        templateFolders: state.templateFolders,
+        shoppingItems: state.shoppingItems,
+        projectFiles: state.projectFiles,
+      },
+    };
+    await supabase
+      .from('planner_state')
+      .upsert({ key:'main', data:payload, updated_at:new Date().toISOString() }, { onConflict:'key' });
+  } catch(e){}
+}
+
+async function cloudSyncNow(){
+  if(!supabase){ toast('Облако не подключено'); return; }
+  const ok = await loadFromCloud();
+  if(ok){ render(); toast('Данные синхронизированы из облака'); }
+  else toast('Ошибка синхронизации или данных нет');
+}
+
 /* ============ THEME ============ */
 (function initTheme(){
   const saved = localStorage.getItem('planner_theme');
@@ -642,6 +720,8 @@ function saveState(){
         projectTab: state.projectTab,
         calendarSelected: state.calendarSelected,
         mergedAssignees: state.mergedAssignees,
+        timezone: state.timezone,
+        notificationsEnabled: state.notificationsEnabled,
         users: state.users,
         guide: state.guide,
         projects: state.projects,
@@ -649,37 +729,44 @@ function saveState(){
         templateFolders: state.templateFolders,
         shoppingItems: state.shoppingItems,
         projectFiles: state.projectFiles,
-        timezone: state.timezone,
-        notificationsEnabled: state.notificationsEnabled,
       },
       expandedTasks: [...expandedTasks],
     };
     localStorage.setItem('planner_data', JSON.stringify(data));
+    saveToCloud();
   } catch(e){}
 }
 function loadState(){
+  let loaded = false;
   try {
     const raw = localStorage.getItem('planner_data');
-    if(!raw) return;
-    const data = JSON.parse(raw);
-    if(data.uidCounter) uidCounter = data.uidCounter;
-    if(data.state){
-      if(data.state.currentUserId) state.currentUserId = data.state.currentUserId;
-      if(data.state.projectTab) state.projectTab = data.state.projectTab;
-      if(data.state.timezone) state.timezone = data.state.timezone;
-      if(data.state.notificationsEnabled !== undefined) state.notificationsEnabled = data.state.notificationsEnabled;
-      if(data.state.calendarSelected) state.calendarSelected = data.state.calendarSelected;
-      if(data.state.mergedAssignees) state.mergedAssignees = data.state.mergedAssignees;
-      if(data.state.users) state.users = data.state.users;
-      if(data.state.guide) state.guide = data.state.guide;
-      if(data.state.projects) state.projects = data.state.projects;
-      if(data.state.tasks) state.tasks = data.state.tasks;
-      if(data.state.templateFolders) state.templateFolders = data.state.templateFolders;
-      if(data.state.shoppingItems) state.shoppingItems = data.state.shoppingItems;
-      if(data.state.projectFiles) state.projectFiles = data.state.projectFiles;
+    if(raw){
+      const data = JSON.parse(raw);
+      if(data.uidCounter) uidCounter = data.uidCounter;
+      if(data.state){
+        if(data.state.currentUserId) state.currentUserId = data.state.currentUserId;
+        if(data.state.projectTab) state.projectTab = data.state.projectTab;
+        if(data.state.timezone) state.timezone = data.state.timezone;
+        if(data.state.notificationsEnabled !== undefined) state.notificationsEnabled = data.state.notificationsEnabled;
+        if(data.state.calendarSelected) state.calendarSelected = data.state.calendarSelected;
+        if(data.state.mergedAssignees) state.mergedAssignees = data.state.mergedAssignees;
+        if(data.state.users) state.users = data.state.users;
+        if(data.state.guide) state.guide = data.state.guide;
+        if(data.state.projects) state.projects = data.state.projects;
+        if(data.state.tasks) state.tasks = data.state.tasks;
+        if(data.state.templateFolders) state.templateFolders = data.state.templateFolders;
+        if(data.state.shoppingItems) state.shoppingItems = data.state.shoppingItems;
+        if(data.state.projectFiles) state.projectFiles = data.state.projectFiles;
+      }
+      if(data.expandedTasks) expandedTasks = new Set(data.expandedTasks);
+      loaded = true;
     }
-    if(data.expandedTasks) expandedTasks = new Set(data.expandedTasks);
   } catch(e){}
+  // Cloud sync overrides localStorage if available
+  loadFromCloud().then(fromCloud=>{
+    if(fromCloud){ state.route = { name:'home', params:{} }; render(); }
+  });
+  return loaded;
 }
 
 function exportAllData(){
@@ -1332,6 +1419,14 @@ function viewSettings(){
     </div>
     <div class="section-title">Данные</div>
     <div class="card">
+      <div class="settings-row">
+        <div><div class="lbl">☁️ Облачная синхронизация</div><div class="sub" id="cloudStatus">${supabase?'Подключено · Supabase':'Не подключено'}</div></div>
+        ${supabase?`<span style="color:var(--sage);">✓</span>`:`<span style="color:var(--text-faint);">—</span>`}
+      </div>
+      <div class="settings-row" style="cursor:pointer;" data-cloud-sync>
+        <div><div class="lbl">🔄 Синхронизировать сейчас</div><div class="sub">Загрузить актуальные данные из облака</div></div>
+        <span style="color:var(--text-faint);">↻</span>
+      </div>
       <div class="settings-row" style="cursor:pointer;" data-export-data>
         <div><div class="lbl">📤 Экспорт всех данных</div><div class="sub">Скачать JSON-файл со всеми задачами, проектами и настройками</div></div>
         <span style="color:var(--text-faint);">↓</span>
@@ -1341,7 +1436,7 @@ function viewSettings(){
         <span style="color:var(--text-faint);">↑</span>
       </div>
       <input type="file" id="importFileInput" accept=".json" style="display:none;">
-      <div class="proj-sub" style="text-align:center; margin:6px 0 2px;">Экспортируйте с ноутбука → отправьте файл на телефон → импортируйте там</div>
+      ${!supabase?`<div class="proj-sub" style="text-align:center; margin:6px 0 2px;">Экспортируйте с ноутбука → отправьте файл на телефон → импортируйте там</div>`:''}
     </div>
     <div class="section-title">Помощь</div>
     <div class="card">
@@ -1491,6 +1586,7 @@ function bindViewEvents(){
   document.querySelectorAll('[data-toggle-theme]').forEach(b=>b.onclick=toggleTheme);
   document.querySelectorAll('[data-export-data]').forEach(b=>b.onclick=exportAllData);
   document.querySelectorAll('[data-import-data]').forEach(b=>b.onclick=()=>document.getElementById('importFileInput').click());
+  document.querySelectorAll('[data-cloud-sync]').forEach(b=>b.onclick=cloudSyncNow);
   const importFileInput = document.getElementById('importFileInput');
   if(importFileInput) importFileInput.onchange = importAllData;
   document.querySelectorAll('[data-change-timezone]').forEach(b=>b.onclick=openTimezones);
