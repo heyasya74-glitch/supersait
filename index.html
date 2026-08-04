@@ -311,6 +311,13 @@ a{color:inherit;}
 .comment .who{font-size:12.5px; font-weight:700; margin-bottom:2px;}
 .comment .txt{font-size:13.5px; color:var(--text);}
 .comment .when{font-size:10.5px; color:var(--text-faint); margin-top:2px;}
+
+.swipe-row{position:relative; overflow:hidden;}
+.swipe-row .swipe-actions{position:absolute; right:0; top:0; bottom:0; display:flex; align-items:center; gap:4px; padding:0 8px; transform:translateX(100%); transition:transform .15s;}
+.swipe-row.swiped .swipe-actions{transform:translateX(0);}
+.swipe-row .swipe-actions button{padding:8px 12px; border-radius:10px; border:none; font-size:12px; font-weight:700; cursor:pointer;}
+.swipe-row .swipe-actions .swipe-edit{background:var(--blue-soft); color:var(--blue);}
+.swipe-row .swipe-actions .swipe-delete{background:var(--clay-soft); color:var(--clay);}
 .attach-row{display:flex; justify-content:space-between; align-items:center; padding:10px 12px; background:var(--surface-alt); border-radius:12px; margin-bottom:8px;}
 .attach-row .t{font-size:13.5px; font-weight:600;}
 .attach-row .p{font-size:12px; color:var(--sage); font-weight:700; margin-top:2px;}
@@ -1362,10 +1369,12 @@ function viewTemplateProjectDetail(p){
               <span class="tag">📋</span>
               <div style="flex:1;">
                 <div class="name">${t.name}</div>
-                <div class="desc">${t.ingredients.length} ингредиентов${t.instructions?' · есть рецепт':''}${t.attachments&&t.attachments.length?' · '+t.attachments.length+' вложений':''}</div>
+                <div class="desc">${t.ingredients.length} ингредиентов${t.instructions?' · есть рецепт':''}</div>
               </div>
             </button>
-            <button class="btn sm" data-use-template="${t.id}">Создать</button>
+            <button class="btn sm" data-use-template="${t.id}">▶</button>
+            <button class="btn ghost sm" data-edit-template="${t.id}">✎</button>
+            <button class="btn ghost sm" data-delete-template="${t.id}" style="color:var(--clay);">×</button>
           </div>
         `).join('');
       }
@@ -1381,10 +1390,12 @@ function viewTemplateProjectDetail(p){
                   <span class="tag">📋</span>
                   <div style="flex:1;">
                     <div class="name">${t.name}</div>
-                    <div class="desc">${t.ingredients.length} ингредиентов${t.instructions?' · есть рецепт':''}${t.attachments&&t.attachments.length?' · '+t.attachments.length+' вложений':''}</div>
+                    <div class="desc">${t.ingredients.length} ингредиентов${t.instructions?' · есть рецепт':''}</div>
                   </div>
                 </button>
-                <button class="btn sm" data-use-template="${t.id}">Создать</button>
+                <button class="btn sm" data-use-template="${t.id}">▶</button>
+                <button class="btn ghost sm" data-edit-template="${t.id}">✎</button>
+                <button class="btn ghost sm" data-delete-template="${t.id}" style="color:var(--clay);">×</button>
               </div>
             `).join('')}
           </div>
@@ -1640,6 +1651,8 @@ function bindViewEvents(){
   document.querySelectorAll('[data-add-task-to]').forEach(b=>b.onclick=()=>openCreateTask(b.dataset.addTaskTo));
   document.querySelectorAll('[data-use-template]').forEach(b=>b.onclick=()=>openUseTemplate(b.dataset.useTemplate));
   document.querySelectorAll('[data-open-template]').forEach(b=>b.onclick=()=>openTemplateDetail(b.dataset.openTemplate));
+  document.querySelectorAll('[data-edit-template]').forEach(b=>b.onclick=()=>openEditTemplate(b.dataset.editTemplate));
+  document.querySelectorAll('[data-delete-template]').forEach(b=>b.onclick=()=>deleteTemplate(b.dataset.deleteTemplate));
   document.querySelectorAll('[data-new-template]').forEach(b=>b.onclick=()=>openCreateTemplateInProject(b.dataset.newTemplate));
   document.querySelectorAll('[data-invite]').forEach(b=>b.onclick=()=>openInvite(b.dataset.invite));
   document.querySelectorAll('[data-edit-project]').forEach(b=>b.onclick=()=>openEditProject(b.dataset.editProject));
@@ -1777,6 +1790,35 @@ function bindViewEvents(){
   });
   const si = document.getElementById('searchInput');
   if(si) si.oninput = ()=> navigate('search',{q:si.value});
+
+  /* Swipe handling */
+  document.querySelectorAll('.task-block').forEach(row=>{
+    let startX = 0, currentX = 0;
+    row.addEventListener('touchstart', e=>{ startX = e.touches[0].clientX; });
+    row.addEventListener('touchmove', e=>{ currentX = e.touches[0].clientX; const dx = startX - currentX; if(dx>0) row.style.transform = `translateX(${-Math.min(dx,120)}px)`; });
+    row.addEventListener('touchend', e=>{
+      const dx = startX - currentX;
+      if(dx>60){
+        row.style.transform = 'translateX(-120px)';
+        if(!row.querySelector('.swipe-actions')){
+          const actions = document.createElement('div');
+          actions.className = 'swipe-actions';
+          actions.style.cssText = 'position:absolute;right:0;top:0;bottom:0;display:flex;align-items:center;gap:4px;padding:0 8px;background:var(--surface);';
+          const editBtn = document.createElement('button');
+          editBtn.textContent = '✎'; editBtn.className = 'swipe-edit';
+          editBtn.onclick = (e)=>{ e.stopPropagation(); const tid = row.querySelector('[data-task]')?.dataset.task; if(tid) openTaskDetail(tid); };
+          const delBtn = document.createElement('button');
+          delBtn.textContent = '🗑'; delBtn.className = 'swipe-delete';
+          delBtn.onclick = (e)=>{ e.stopPropagation(); const tid = row.querySelector('[data-task]')?.dataset.task; const t = state.tasks.find(x=>x.id===tid); if(t && confirm('Удалить задачу «'+t.title+'»?')){ state.tasks = state.tasks.filter(x=>x.id!==tid); render(); toast('Удалено'); } };
+          actions.appendChild(editBtn); actions.appendChild(delBtn);
+          row.style.position = 'relative'; row.style.overflow = 'hidden'; row.appendChild(actions);
+        }
+      } else {
+        row.style.transform = '';
+      }
+    });
+    row.addEventListener('click', e=>{ if(row.style.transform){ row.style.transform = ''; e.stopPropagation(); } });
+  });
 }
 
 function toggleTask(id){
@@ -2238,6 +2280,65 @@ function openCreateTemplateInProject(projectId){
   });
 }
 
+function openEditTemplate(templateId){
+  const { tmpl } = findTemplate(templateId);
+  if(!tmpl) return;
+  openModal(`
+    <div class="sheet-title">Редактировать шаблон</div>
+    <div class="field" style="margin-top:14px;"><label>Название</label><input type="text" id="etName" value="${tmpl.name}"></div>
+    <div class="field"><label>Инструкция</label><textarea id="etInstr" style="min-height:60px;">${tmpl.instructions||''}</textarea></div>
+    <div class="field"><label>Ингредиенты</label>
+      <div id="etIngs">${tmpl.ingredients.map((ing,i)=>`
+        <div class="checklist-row"><span class="txt" style="font-size:13px;">${ing.name} — ${ing.amount} ${ing.unit}</span><button class="btn ghost sm" data-et-rm-ing="${i}" type="button">×</button></div>
+      `).join('')||'<div class="proj-sub">Нет ингредиентов</div>'}</div>
+      <div style="display:grid; grid-template-columns:1.3fr 0.7fr 0.7fr; gap:6px; margin-top:6px;">
+        <input type="text" id="etIngName" class="mini-input" placeholder="Название">
+        <input type="number" id="etIngAmount" class="mini-input" placeholder="Кол-во">
+        <input type="text" id="etIngUnit" class="mini-input" placeholder="Ед.">
+      </div>
+      <button class="btn secondary sm" id="etIngAdd" type="button" style="margin-top:6px;">+ Добавить</button>
+    </div>
+    <button class="btn block" id="etSave">Сохранить</button>
+  `, ()=>{
+    const refreshIngs = ()=>{
+      document.getElementById('etIngs').innerHTML = tmpl.ingredients.map((ing,i)=>`
+        <div class="checklist-row"><span class="txt" style="font-size:13px;">${ing.name} — ${ing.amount} ${ing.unit}</span><button class="btn ghost sm" data-et-rm-ing="${i}" type="button">×</button></div>
+      `).join('')||'<div class="proj-sub">Нет ингредиентов</div>';
+      document.querySelectorAll('[data-et-rm-ing]').forEach(b=>b.onclick=()=>{ tmpl.ingredients.splice(Number(b.dataset.etRmIng),1); refreshIngs(); });
+    };
+    document.getElementById('etIngAdd').onclick = ()=>{
+      const n = document.getElementById('etIngName').value.trim();
+      if(!n) return;
+      tmpl.ingredients.push({name:n, amount:Number(document.getElementById('etIngAmount').value)||0, unit:document.getElementById('etIngUnit').value.trim()});
+      document.getElementById('etIngName').value=''; document.getElementById('etIngAmount').value=''; document.getElementById('etIngUnit').value='';
+      refreshIngs();
+    };
+    refreshIngs();
+    document.getElementById('etSave').onclick = ()=>{
+      const name = document.getElementById('etName').value.trim();
+      if(!name){ toast('Введите название'); return; }
+      tmpl.name = name;
+      tmpl.instructions = document.getElementById('etInstr').value.trim();
+      closeModal();
+      toast('Шаблон обновлён');
+    };
+  });
+}
+
+function deleteTemplate(templateId){
+  const { tmpl, srcProject } = findTemplate(templateId);
+  if(!tmpl || !srcProject) return;
+  if(!confirm(`Удалить шаблон «${tmpl.name}»?`)) return;
+  const folders = state.templateFolders[srcProject.id];
+  if(folders){
+    folders.forEach(f=>{
+      f.templates = f.templates.filter(t=>t.id!==templateId);
+    });
+  }
+  navigate('projectDetail', {id:srcProject.id});
+  toast('Шаблон удалён');
+}
+
 function findTemplate(templateId){
   let tmpl, srcProject;
   state.projects.forEach(pr=>{
@@ -2625,8 +2726,12 @@ function showLoginModal(){
 
 function openTaskDetail(id){
   const t = state.tasks.find(t=>t.id===id);
+  if(!t) return;
   const p = projectById(t.projectId);
   const checkPct = t.checklist.length? Math.round(t.checklist.filter(c=>c.done).length/t.checklist.length*100):null;
+  const hasSecond = !!(t.secondaryChecklist && t.secondaryChecklist.length>0);
+  const secondUser = t.secondaryAssignee ? userById(t.secondaryAssignee) : null;
+  const scPct = hasSecond? Math.round(t.secondaryChecklist.filter(c=>c.done).length/t.secondaryChecklist.length*100):null;
 
   openModal(`
     <div style="display:flex; align-items:flex-start; gap:10px;">
@@ -2634,9 +2739,9 @@ function openTaskDetail(id){
       <div style="flex:1;">
         <input type="text" id="editTitle" class="mini-input" value="${t.title.replace(/"/g,'&quot;')}" style="font-weight:700; font-size:15px; border:none; padding:4px 0; background:transparent; color:var(--text); width:100%;">
         <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap; margin-top:4px;">
-          <button class="chip" id="projChip" data-change-project="${t.id}" style="cursor:pointer;">${p?p.icon+' '+p.name:'🗂️ Без проекта'}</button>
+          <button class="chip" data-change-project="${t.id}" style="cursor:pointer;">${p?p.icon+' '+p.name:'🗂️ Без проекта'}</button>
           <input type="date" id="editDate" value="${t.date}" class="mini-input" style="width:auto; min-width:120px; font-size:11px; padding:4px 8px;">
-          <input type="number" id="editTime" value="${t.planned}" min="5" step="5" class="mini-input" style="width:64px; font-size:11px; padding:4px 8px;" title="Минут">
+          <input type="number" id="editTime" value="${t.planned}" min="5" step="5" class="mini-input" style="width:60px; font-size:11px; padding:4px 8px;" title="Минут">
           ${t.recurringGroup?`<span class="chip">🔁 ${freqLabel(t.recurringFreq, t.recurringInterval)}</span>`:''}
         </div>
       </div>
@@ -2648,16 +2753,38 @@ function openTaskDetail(id){
       </div>
     </div>
 
-    <div class="folder-title">☑️ Чек-лист ${checkPct!==null?`· ${checkPct}%`:''}</div>
-    <div id="checklistBox">${renderChecklist(t)}</div>
+    ${hasSecond ? `
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+      <div>
+        <div class="folder-title">☑️ ${userById(t.assignee)?.emoji||''} ${userById(t.assignee)?.name||'Я'} ${checkPct!==null?`· ${checkPct}%`:''}</div>
+        <div id="checklistBox1">${renderChecklistItems(t.checklist, t.id, 'c')}</div>
+        <div style="display:flex; gap:6px; margin-top:6px;">
+          <input type="text" id="newCheckText1" class="mini-input" placeholder="Добавить" style="font-size:11px;">
+          <button class="btn sm" data-add-check="1" style="font-size:11px;padding:4px 8px;">+</button>
+        </div>
+      </div>
+      <div>
+        <div class="folder-title">☑️ ${secondUser?.emoji||'👤'} ${secondUser?.name||'Второй'} ${scPct!==null?`· ${scPct}%`:''}</div>
+        <div id="checklistBox2">${renderChecklistItems(t.secondaryChecklist, t.id, 'sc')}</div>
+        <div style="display:flex; gap:6px; margin-top:6px;">
+          <input type="text" id="newCheckText2" class="mini-input" placeholder="Добавить" style="font-size:11px;">
+          <button class="btn sm" data-add-check="2" style="font-size:11px;padding:4px 8px;">+</button>
+        </div>
+      </div>
+    </div>
+    <button class="btn ghost sm" data-remove-second-checklist style="margin-bottom:10px; color:var(--clay);">Убрать второй чек-лист</button>
+    ` : `
+    <div class="folder-title">☑️ Чек-лист ${checkPct!==null?`· ${checkPct}%`:''} ${!hasSecond?`<button class="btn ghost sm" data-add-second-checklist style="float:right;">+ второй список</button>`:''}</div>
+    <div id="checklistBox">${renderChecklistItems(t.checklist, t.id, 'c')}</div>
     <div style="display:flex; gap:8px; margin:8px 0 14px;">
       <input type="text" id="newCheckText" class="mini-input" placeholder="Добавить пункт">
       <button class="btn sm" id="addCheckBtn">+</button>
     </div>
+    `}
 
     <div class="folder-title">💬 Обсуждение</div>
     <div id="commentsBox">${t.comments.map(c=>`
-      <div class="comment"><div class="who">${userById(c.author).name}</div><div class="txt">${c.text}</div><div class="when">${c.date}</div></div>
+      <div class="comment"><div class="who">${userById(c.author)?.name||c.author}</div><div class="txt">${c.text}</div><div class="when">${c.date}</div></div>
     `).join('') || `<div class="proj-sub" style="margin-bottom:8px;">Пока нет комментариев</div>`}</div>
     <div style="display:flex; gap:8px; margin-top:8px;">
       <input type="text" id="newComment" class="mini-input" placeholder="Написать комментарий">
@@ -2671,43 +2798,74 @@ function openTaskDetail(id){
       if(newTitle) t.title = newTitle;
       t.date = document.getElementById('editDate')?.value || t.date;
       t.planned = Number(document.getElementById('editTime')?.value) || 15;
-      state.route = state.route; render();
+      render();
     };
 
     document.querySelector('[data-tt]').onclick = ()=>{ toggleTask(t.id); openTaskDetail(t.id); };
     document.getElementById('editTitle').onblur = save;
     document.getElementById('editDate').onchange = save;
     document.getElementById('editTime').onchange = save;
-  `, ()=>{
-    document.querySelector('[data-tt]').onclick = ()=>{ toggleTask(t.id); openTaskDetail(t.id); };
 
     document.querySelector('[data-change-project]').onclick = (e)=>{
       e.stopPropagation();
       const projects = [{id:'none',icon:'🗂️',name:'Без проекта'}, ...state.projects.filter(pr=>pr.type!=='template')];
-      const html = projects.map(pr=>`<button style="display:block;width:100%;text-align:left;padding:10px 14px;border:none;background:none;font-size:14px;cursor:pointer;" data-sel-proj="${pr.id}">${pr.icon} ${pr.name}</button>`).join('');
+      const opts = projects.map(pr=>`<button data-sel-proj="${pr.id}" style="display:block;width:100%;text-align:left;padding:10px 14px;border:none;background:none;font-size:14px;cursor:pointer;">${pr.icon} ${pr.name}</button>`).join('');
       const sheet = document.getElementById('sheet');
-      const div = document.createElement('div');
-      div.innerHTML = `<div class="sheet-title">Выберите проект</div><div style="margin-top:8px;">${html}</div>`;
-      const old = sheet.querySelector('.sheet-title');
-      if(old) old.parentNode.replaceChild(div, old.parentNode.firstChild);
-      div.querySelectorAll('[data-sel-proj]').forEach(b=>b.onclick=()=>{
+      const d = document.createElement('div');
+      d.innerHTML = `<div class="sheet-title">Проект</div><div style="margin-top:8px;">${opts}</div>`;
+      sheet.insertBefore(d, sheet.firstChild);
+      d.querySelectorAll('[data-sel-proj]').forEach(b=>b.onclick=()=>{
         t.projectId = b.dataset.selProj==='none'? null : b.dataset.selProj;
         openTaskDetail(t.id);
-        toast('Проект изменён');
       });
-      return false;
     };
+
     document.querySelectorAll('#taskAssignee button').forEach(b=>b.onclick=()=>{
       t.assignee = b.dataset.v;
       save();
-    bindChecklistEvents(t);
-    document.getElementById('addCheckBtn').onclick = ()=>{
-      const v = document.getElementById('newCheckText').value.trim();
+    });
+
+    // Single checklist handlers
+    const addCheckBtn = document.getElementById('addCheckBtn');
+    if(addCheckBtn) addCheckBtn.onclick = ()=>{
+      const v = document.getElementById('newCheckText')?.value.trim();
       if(!v) return;
       t.checklist.push({id:uid('c'), text:v, done:false});
       syncTaskDoneFromChecklist(t);
       openTaskDetail(t.id);
     };
+
+    // Dual checklist handlers
+    document.querySelectorAll('[data-add-check]').forEach(b=>b.onclick=()=>{
+      const num = b.dataset.addCheck;
+      const input = document.getElementById('newCheckText'+num);
+      if(!input) return;
+      const v = input.value.trim();
+      if(!v) return;
+      if(num==='2'){
+        if(!t.secondaryChecklist) t.secondaryChecklist = [];
+        t.secondaryChecklist.push({id:uid('sc'), text:v, done:false});
+      } else {
+        t.checklist.push({id:uid('c'), text:v, done:false});
+      }
+      syncTaskDoneFromChecklist(t);
+      openTaskDetail(t.id);
+    });
+
+    document.querySelector('[data-add-second-checklist]')?.addEventListener('click', ()=>{
+      const other = state.users.find(u=>u.id!==t.assignee);
+      t.secondaryChecklist = [];
+      t.secondaryAssignee = other ? other.id : state.users[0].id;
+      openTaskDetail(t.id);
+    });
+
+    document.querySelector('[data-remove-second-checklist]')?.addEventListener('click', ()=>{
+      t.secondaryChecklist = null;
+      t.secondaryAssignee = null;
+      openTaskDetail(t.id);
+    });
+
+    bindChecklistEvents(t);
     document.getElementById('addCommentBtn').onclick = ()=>{
       const v = document.getElementById('newComment').value.trim();
       if(!v) return;
@@ -2721,22 +2879,43 @@ function openTaskDetail(id){
     };
   });
 }
-function renderChecklist(t){
-  const sorted = t.checklist.slice().sort(doneSort);
+
+function renderChecklistItems(list, taskId, prefix){
+  if(!list || !list.length) return '<div class="proj-sub" style="margin-bottom:4px;">Пунктов пока нет</div>';
+  const sorted = list.slice().sort(doneSort);
   return sorted.map(c=>`
     <div class="checklist-row">
-      <button class="check ${c.done?'done':''}" data-ck="${c.id}" style="width:19px;height:19px;font-size:10px;">${c.done?'✓':''}</button>
-      <span class="txt" style="${c.done?'text-decoration:line-through;color:var(--text-faint);':''} font-size:13.5px;">${c.text}</span>
-      ${c.amount!=null?`<span style="margin-left:auto; font-size:11.5px; color:var(--text-soft);">${c.amount} ${c.unit||''}</span>`:''}
+      <button class="check ${c.done?'done':''}" data-ck-${prefix}="${c.id}" style="width:19px;height:19px;font-size:10px;">${c.done?'✓':''}</button>
+      <span class="txt" style="${c.done?'text-decoration:line-through;color:var(--text-faint);':''} font-size:13px;">${c.text}</span>
+      ${c.amount!=null?`<span style="margin-left:auto; font-size:11px; color:var(--text-soft);">${c.amount} ${c.unit||''}</span>`:''}
     </div>
-  `).join('') || `<div class="proj-sub" style="margin-bottom:8px;">Пунктов пока нет</div>`;
+  `).join('');
+}
+function syncTaskDoneFromChecklist(t){
+  if(t.checklist.length>0){
+    t.done = t.checklist.every(c=>c.done);
+    if(t.secondaryChecklist && t.secondaryChecklist.length>0){
+      t.done = t.done && t.secondaryChecklist.every(c=>c.done);
+    }
+  }
+  if(t.secondaryChecklist && t.secondaryChecklist.length>0 && t.checklist.length===0){
+    t.done = t.secondaryChecklist.every(c=>c.done);
+  }
 }
 function bindChecklistEvents(t){
+  document.querySelectorAll('[data-ck-c]').forEach(b=>b.onclick=()=>{
+    const item = t.checklist.find(c=>c.id===b.dataset.ckC);
+    if(item){ item.done = !item.done; syncTaskDoneFromChecklist(t); openTaskDetail(t.id); }
+  });
+  document.querySelectorAll('[data-ck-sc]').forEach(b=>b.onclick=()=>{
+    if(!t.secondaryChecklist) return;
+    const item = t.secondaryChecklist.find(c=>c.id===b.dataset.ckSc);
+    if(item){ item.done = !item.done; syncTaskDoneFromChecklist(t); openTaskDetail(t.id); }
+  });
+  // Legacy support
   document.querySelectorAll('[data-ck]').forEach(b=>b.onclick=()=>{
     const item = t.checklist.find(c=>c.id===b.dataset.ck);
-    item.done = !item.done;
-    syncTaskDoneFromChecklist(t);
-    openTaskDetail(t.id);
+    if(item){ item.done = !item.done; syncTaskDoneFromChecklist(t); openTaskDetail(t.id); }
   });
 }
 
