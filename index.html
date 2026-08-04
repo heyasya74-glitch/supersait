@@ -2757,7 +2757,7 @@ function openTaskDetail(id){
       <input type="text" id="newCheckText" class="mini-input" placeholder="Добавить пункт">
       <button class="btn sm" id="addCheckBtn">+</button>
     </div>
-    ${!hasSecond?`<button class="btn ghost sm" id="addSecondChecklistBtn" style="margin-bottom:6px;">👥 + второй чек-лист</button>`:''}
+    ${!hasSecond?`<button class="btn ghost sm" style="margin-bottom:6px;" onclick="const x=state.tasks.find(t=>t.id==='${t.id}');if(x){const o=state.users.find(u=>u.id!==x.assignee);x.secondaryChecklist=[];x.secondaryAssignee=o?o.id:state.users[0].id;render();closeModal();openTaskDetail('${t.id}');}">👥 + второй чек-лист</button>`:''}
     ${t.recurringGroup
       ? `<div style="margin-bottom:6px;"><span class="chip">🔁 ${freqLabel(t.recurringFreq, t.recurringInterval)}</span> <button class="btn ghost sm" id="cancelRecurringBtn">отменить</button></div>`
       : `<button class="btn ghost sm" id="makeRecurringBtn">🔁 сделать регулярной</button>`}
@@ -2833,13 +2833,6 @@ function openTaskDetail(id){
       openTaskDetail(t.id);
     });
 
-    const addSecondBtn = document.getElementById('addSecondChecklistBtn');
-    if(addSecondBtn) addSecondBtn.onclick = ()=>{
-      const other = state.users.find(u=>u.id!==t.assignee);
-      t.secondaryChecklist = [];
-      t.secondaryAssignee = other ? other.id : state.users[0].id;
-      openTaskDetail(t.id);
-    };
     const makeRecurring = document.getElementById('makeRecurringBtn');
     if(makeRecurring) makeRecurring.onclick = ()=>{
       const freq = prompt('Каждые (например: 1 недель, 3 дней, 1 месяцев)?', '1 недель');
