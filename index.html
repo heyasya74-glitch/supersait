@@ -550,7 +550,8 @@ async function saveToCloud(){
       body: JSON.stringify({ key:'main', data:payload, updated_at:new Date().toISOString() }),
     });
     console.log('Cloud save:', res.ok ? 'OK' : 'FAIL '+res.status);
-  } catch(e){ console.error('Cloud save error:', e); }
+    return res.ok;
+  } catch(e){ console.error('Cloud save error:', e); return false; }
 }
 
 function showSyncIndicator(ok){
@@ -789,7 +790,9 @@ function saveState(){
       expandedTasks: [...expandedTasks],
     };
     localStorage.setItem('planner_data', JSON.stringify(data));
-    saveToCloud();
+    saveToCloud().then(ok=>{
+      if(ok){ window.__lastCloudSave = Date.now(); }
+    });
   } catch(e){}
 }
 function loadState(){
