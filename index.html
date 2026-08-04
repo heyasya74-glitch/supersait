@@ -2757,7 +2757,35 @@ function openTaskDetail(id){
       <input type="text" id="newCheckText" class="mini-input" placeholder="Добавить пункт">
       <button class="btn sm" id="addCheckBtn">+</button>
     </div>
-    ${!hasSecond?`<button class="btn secondary sm block" id="addSecondChecklistBtn" style="margin-bottom:10px;">👥 Добавить второй чек-лист</button>`:''}
+    ${!hasSecond?`<button class="btn secondary sm block" style="margin-bottom:10px;" type="button" onclick="(function(){
+      const t=state.tasks.find(x=>x.id==='${t.id}');
+      if(!t) return;
+      const other=state.users.find(u=>u.id!==t.assignee);
+      t.secondaryChecklist=[];
+      t.secondaryAssignee=other?other.id:state.users[0].id;
+      render(); closeModal(); openTaskDetail('${t.id}');
+    })()">👥 Добавить второй чек-лист</button>`:''}
+
+    <div class="folder-title">🔁 Повтор</div>
+    ${t.recurringGroup
+      ? `<div style="display:flex; align-items:center; gap:8px;"><span class="chip">🔁 ${freqLabel(t.recurringFreq, t.recurringInterval)}</span><button class="btn ghost sm" onclick="(function(){
+        const t=state.tasks.find(x=>x.id==='${t.id}');
+        delete t.recurringGroup; delete t.recurringFreq; delete t.recurringInterval;
+        render(); closeModal(); openTaskDetail('${t.id}');
+        })()">Отменить повтор</button></div>`
+      : `<button class="btn secondary sm block" onclick="(function(){
+        const t=state.tasks.find(x=>x.id==='${t.id}');
+        const freq=prompt('Повторять каждые (дней/недель/месяцев)?','1 недель');
+        if(!freq) return;
+        const m=freq.match(/(\d+)\s*(д|н|м)/);
+        const n=m?parseInt(m[1]):1;
+        const fm=m?{д:'daily',н:'weekly',м:'monthly'}[m[2]]||'weekly':'weekly';
+        t.recurringGroup=Math.random().toString(36).slice(2);
+        t.recurringFreq=fm; t.recurringInterval=n;
+        render(); closeModal(); openTaskDetail('${t.id}');
+        toast('Задача стала регулярной');
+      })()">🔁 Сделать регулярной</button>`}
+    </div>
     `}
 
     <div class="folder-title">💬 Обсуждение</div>
