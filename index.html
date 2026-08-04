@@ -736,9 +736,9 @@ function fmtDateHuman(key){
 }
 function fmtMinutes(min){
   const h = Math.floor(min/60), m = min%60;
-  if(h===0) return `${m} мин`;
-  if(m===0) return `${h} ч`;
-  return `${h} ч ${m} мин`;
+  if(h===0) return `${m}&nbsp;мин`;
+  if(m===0) return `${h}&nbsp;ч`;
+  return `${h}&nbsp;ч&nbsp;${m}&nbsp;мин`;
 }
 function nextDatesForFreq(startDateKey, freq, interval, count){
   const dates=[];
@@ -1029,6 +1029,7 @@ function viewHome(){
     <div class="pill-tabs">
       ${tabBtn('mine','Мои')}${tabBtn('shared','Общие')}${tabBtn('all','Все')}
     </div>
+    <div class="section-title">📋 Задачи на сегодня · ${filtered.length}</div>
     <div class="card" style="padding:4px 12px;">
       ${filtered.length? filtered.map(t=>taskRow(t,{hideAssignee})).join('') : emptyBlock('✅','На сегодня всё сделано','Отличная работа!')}
     </div>
@@ -1044,7 +1045,6 @@ function viewHome(){
         <div class="lbl">Запланировано времени</div>
       </div>
     </div>
-
     ${mergedIngredientsCard(todayStr())}
   `;
 }
@@ -1124,10 +1124,8 @@ function viewProjects(){
     <div class="pill-tabs">
       ${tabBtn('mine','Личные')}${tabBtn('shared','Общие')}${tabBtn('all','Все')}
     </div>
-    <div class="card" style="padding:4px 8px;">
-      ${showVirtual? projectListCard(virtual): ''}
-      ${list.map(projectListCard).join('')}
-    </div>
+    ${showVirtual? projectListCard(virtual): ''}
+    ${list.map(p=>projectListCard(p)).join('')}
   `;
 }
 function projectListCard(p){
@@ -1135,21 +1133,23 @@ function projectListCard(p){
   const done = tasks.filter(t=>t.done).length;
   const pct = tasks.length? Math.round(done/tasks.length*100):0;
   return `
-    <button class="task-block" data-open-project="${p.id}" style="width:100%; text-align:left; border:none; background:none; cursor:pointer; padding:12px 4px; display:flex; align-items:center; gap:12px;">
-      <span class="proj-icon" style="background:${accentSoft(p.accent)}; width:38px; height:38px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:17px; flex-shrink:0;">${p.icon}</span>
-      <div style="flex:1; min-width:0;">
-        <div style="display:flex; align-items:center; gap:6px;">
-          <span class="proj-name" style="font-size:14.5px;">${p.name}</span>
-          ${p.type==='template'?`<span class="template-badge">Шаблон</span>`:`<span class="chip">${done}/${tasks.length}</span>`}
-          ${p.type!=='template'?`<span style="font-size:12px; color:var(--text-soft);">${pct}%</span>`:''}
+    <div class="card" style="padding:0;">
+      <button data-open-project="${p.id}" style="width:100%; text-align:left; border:none; background:none; cursor:pointer; padding:14px; display:flex; align-items:center; gap:12px;">
+        <span class="proj-icon" style="background:${accentSoft(p.accent)}; width:38px; height:38px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:17px; flex-shrink:0;">${p.icon}</span>
+        <div style="flex:1; min-width:0;">
+          <div style="display:flex; align-items:center; gap:6px;">
+            <span class="proj-name" style="font-size:14.5px;">${p.name}</span>
+            ${p.type==='template'?`<span class="template-badge">Шаблон</span>`:`<span class="chip">${done}/${tasks.length}</span>`}
+            ${p.type!=='template'?`<span style="font-size:12px; color:var(--text-soft);">${pct}%</span>`:''}
+          </div>
+          ${p.type!=='template'?`<div class="progress-bar" style="margin-top:5px;"><div style="width:${pct}%; background:${accentVar(p.accent)}"></div></div>`:`<div class="proj-sub" style="font-size:11px;">${state.templateFolders[p.id]?.reduce((s,f)=>s+f.templates.length,0)||0} шаблонов</div>`}
         </div>
-        ${p.type!=='template'?`<div class="progress-bar" style="margin-top:5px;"><div style="width:${pct}%; background:${accentVar(p.accent)}"></div></div>`:`<div class="proj-sub" style="font-size:11px;">${state.templateFolders[p.id]?.reduce((s,f)=>s+f.templates.length,0)||0} шаблонов</div>`}
-      </div>
-      <div class="avatar-stack" style="flex-shrink:0;">
-        ${p.members.slice(0,3).map(m=>{const u=userById(m); return `<span class="avatar" style="background:${u.color}">${u.emoji}</span>`}).join('')}
-      </div>
-      <span style="color:var(--text-faint); flex-shrink:0;">→</span>
-    </button>
+        <div class="avatar-stack" style="flex-shrink:0;">
+          ${p.members.slice(0,3).map(m=>{const u=userById(m); return `<span class="avatar" style="background:${u.color}">${u.emoji}</span>`}).join('')}
+        </div>
+        <span style="color:var(--text-faint); flex-shrink:0; font-size:18px;">→</span>
+      </button>
+    </div>
   `;
 }
 
@@ -1447,6 +1447,7 @@ function viewCalendar(){
     <div class="card" style="padding:4px 12px;">
       ${dayTasks.length? dayTasks.map(t=>taskRow(t)).join('') : emptyBlock('🌤️','Задач нет','Свободный день')}
     </div>
+    ${mergedIngredientsCard(state.calendarSelected)}
   `;
 }
 
@@ -1790,35 +1791,6 @@ function bindViewEvents(){
   });
   const si = document.getElementById('searchInput');
   if(si) si.oninput = ()=> navigate('search',{q:si.value});
-
-  /* Swipe handling */
-  document.querySelectorAll('.task-block').forEach(row=>{
-    let startX = 0, currentX = 0;
-    row.addEventListener('touchstart', e=>{ startX = e.touches[0].clientX; });
-    row.addEventListener('touchmove', e=>{ currentX = e.touches[0].clientX; const dx = startX - currentX; if(dx>0) row.style.transform = `translateX(${-Math.min(dx,120)}px)`; });
-    row.addEventListener('touchend', e=>{
-      const dx = startX - currentX;
-      if(dx>60){
-        row.style.transform = 'translateX(-120px)';
-        if(!row.querySelector('.swipe-actions')){
-          const actions = document.createElement('div');
-          actions.className = 'swipe-actions';
-          actions.style.cssText = 'position:absolute;right:0;top:0;bottom:0;display:flex;align-items:center;gap:4px;padding:0 8px;background:var(--surface);';
-          const editBtn = document.createElement('button');
-          editBtn.textContent = '✎'; editBtn.className = 'swipe-edit';
-          editBtn.onclick = (e)=>{ e.stopPropagation(); const tid = row.querySelector('[data-task]')?.dataset.task; if(tid) openTaskDetail(tid); };
-          const delBtn = document.createElement('button');
-          delBtn.textContent = '🗑'; delBtn.className = 'swipe-delete';
-          delBtn.onclick = (e)=>{ e.stopPropagation(); const tid = row.querySelector('[data-task]')?.dataset.task; const t = state.tasks.find(x=>x.id===tid); if(t && confirm('Удалить задачу «'+t.title+'»?')){ state.tasks = state.tasks.filter(x=>x.id!==tid); render(); toast('Удалено'); } };
-          actions.appendChild(editBtn); actions.appendChild(delBtn);
-          row.style.position = 'relative'; row.style.overflow = 'hidden'; row.appendChild(actions);
-        }
-      } else {
-        row.style.transform = '';
-      }
-    });
-    row.addEventListener('click', e=>{ if(row.style.transform){ row.style.transform = ''; e.stopPropagation(); } });
-  });
 }
 
 function toggleTask(id){
@@ -2218,7 +2190,7 @@ function openCreateTemplateInProject(projectId){
         <input type="text" id="nTNewFolder" class="mini-input" placeholder="Название новой папки">
       </div>
     </div>
-    <div class="field"><label>Инструкция</label><textarea id="nTInstructions" placeholder="Как готовить, что делать" style="min-height:60px;"></textarea></div>
+    <div class="field"><label>Инструкция</label><textarea id="nTInstructions" placeholder="Как готовить, что делать" style="min-height:100px; width:100%;"></textarea></div>
     <div class="field"><label>Ингредиенты</label>
       <div id="nTIngredients"></div>
       <div style="display:grid; grid-template-columns:1.3fr 0.7fr 0.7fr; gap:6px; margin-top:6px;">
@@ -2822,7 +2794,7 @@ function openTaskDetail(id){
 
     document.querySelectorAll('#taskAssignee button').forEach(b=>b.onclick=()=>{
       t.assignee = b.dataset.v;
-      save();
+      openTaskDetail(t.id);
     });
 
     // Single checklist handlers
@@ -2852,18 +2824,20 @@ function openTaskDetail(id){
       openTaskDetail(t.id);
     });
 
-    document.querySelector('[data-add-second-checklist]')?.addEventListener('click', ()=>{
+    const addSecondBtn = document.querySelector('[data-add-second-checklist]');
+    if(addSecondBtn) addSecondBtn.onclick = ()=>{
       const other = state.users.find(u=>u.id!==t.assignee);
       t.secondaryChecklist = [];
       t.secondaryAssignee = other ? other.id : state.users[0].id;
       openTaskDetail(t.id);
-    });
+    };
 
-    document.querySelector('[data-remove-second-checklist]')?.addEventListener('click', ()=>{
+    const removeSecondBtn = document.querySelector('[data-remove-second-checklist]');
+    if(removeSecondBtn) removeSecondBtn.onclick = ()=>{
       t.secondaryChecklist = null;
       t.secondaryAssignee = null;
       openTaskDetail(t.id);
-    });
+    };
 
     bindChecklistEvents(t);
     document.getElementById('addCommentBtn').onclick = ()=>{
