@@ -1915,7 +1915,6 @@ function openCreateTask(defaultProjectId){
     };
     document.querySelectorAll('#fSecondAssignee button').forEach(b=>b.onclick=()=>{ chosenSecondAssignee=b.dataset.v; document.querySelectorAll('#fSecondAssignee button').forEach(x=>x.classList.remove('active')); b.classList.add('active'); });
 
-    document.getElementById('fRepeatSwitch').onclick = ()=>{
     let chosenFreq = 'daily';
 
     const syncAssigneeVisibility = ()=>{
